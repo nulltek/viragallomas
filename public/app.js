@@ -32,7 +32,7 @@ const uiTranslations = new Map(Object.entries({
   'Összesen': 'Total', 'Kizárólag személyes átvétel üzletünkben': 'In-store pickup only', '⌖ Kizárólag személyes átvétel üzletünkben': '⌖ In-store pickup only', 'Tovább a pénztárhoz': 'Continue to checkout', 'Vissza a kosárhoz': 'Back to cart', '← Vissza a kosárhoz': '← Back to cart',
   'Átvételi adatok': 'Pickup details', 'Név': 'Name', 'Telefonszám': 'Phone number', 'Megjegyzés': 'Note', '(opcionális)': '(optional)', 'Fizetés': 'Payment',
   'Fizetés átvételkor': 'Pay on pickup', 'Készpénzzel az üzletben': 'Cash in store', 'Bankkártya (Stripe)': 'Card (Stripe)', 'Még nem elérhető': 'Not available yet',
-  'Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.': 'I accept the Terms and Conditions and the Privacy Notice.', 'Rendelés leadása': 'Place order', 'Rendelés leadása ·': 'Place order ·',
+  'Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.': 'I accept the Terms and Conditions and the Privacy Notice.', 'Rendelés leadása': 'Place order', 'Rendelés leadása ·': 'Place order ·', 'Rendelés lemondása': 'Cancel order', 'Virág rendelése esetén a rendelés leadása után nincs lehetőség lemondásra.': 'Flower orders cannot be cancelled after they have been submitted.',
   'Rendelésed sikeresen leadva!': 'Your order has been placed successfully!', 'Köszönjük, rendelésedet rögzítettük.': 'Thank you, we have recorded your order.', 'Rendelési azonosítód:': 'Your order number:', 'Hamarosan felvesszük veled a kapcsolatot az átvétel részleteivel.': 'We will contact you shortly with the pickup details.', 'Rendben': 'Done'
 }));
 
