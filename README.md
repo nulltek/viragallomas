@@ -1,6 +1,6 @@
 # Virág Állomás Szeged
 
-Reszponzív, önálló webshop és admin felület. Külső JavaScript-csomag nélkül fut; a katalógust és a rendeléseket a `data/store.json` fájlban tárolja.
+Reszponzív, önálló webshop és admin felület. Éles környezetben PostgreSQL-ben, helyi fejlesztéskor pedig a `data/store.json` fájlban tárolja a katalógust és a rendeléseket.
 
 ## Indítás
 
@@ -27,6 +27,7 @@ PUBLIC_URL=https://a-sajat-domain.hu
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 SESSION_SECRET=legalabb-32-karakteres-veletlen-ertek
+DATABASE_URL=postgresql://...
 ```
 
 A Stripe Dashboardban hozd létre a webhookot erre a címre:
@@ -55,7 +56,7 @@ Stripe kulcs nélkül a webshop készpénzes, személyes átvételes rendelési 
 - Töltsd ki a valódi üzletcímet, telefonszámot, e-mailt és nyitvatartást a `public/index.html` fájlban.
 - Cseréld le a fejlesztési ÁSZF- és adatkezelési mintaszöveget jogilag ellenőrzött dokumentumokra.
 - Állíts be HTTPS-t és rendszeres biztonsági mentést a `data/store.json` fájlra.
-- Nagyobb forgalomnál érdemes a JSON-tárolót PostgreSQL vagy más felügyelt adatbázisra cserélni, a képeket pedig objektumtárhelyre feltölteni.
+- Nagyobb forgalomnál a feltöltött képeket érdemes objektumtárhelyre költöztetni; a jelenlegi adatbázis JSONB mezőben tárolja őket.
 
 ## Képi világ
 

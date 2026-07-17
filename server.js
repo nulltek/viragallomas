@@ -11,6 +11,12 @@ const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessions = new Map();
+const dbPool = process.env.DATABASE_URL ? new (require('pg').Pool)({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
+  max: 5
+}) : null;
+let databaseReady = null;
 
 const uid = (prefix = '') => prefix + crypto.randomBytes(8).toString('hex');
 const now = () => new Date().toISOString();
@@ -51,16 +57,42 @@ function seedStore() {
   };
 }
 
-function loadStore() {
+async function ensureDatabase() {
+  if (!dbPool) return;
+  if (!databaseReady) databaseReady = (async () => {
+    await dbPool.query(`CREATE TABLE IF NOT EXISTS app_state (
+      id INTEGER PRIMARY KEY,
+      data JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+    const existing = await dbPool.query('SELECT id FROM app_state WHERE id = 1');
+    if (!existing.rowCount) {
+      await dbPool.query('INSERT INTO app_state (id, data) VALUES (1, $1::jsonb)', [JSON.stringify(seedStore())]);
+    }
+  })();
+  return databaseReady;
+}
+
+async function loadStore() {
+  if (dbPool) {
+    await ensureDatabase();
+    const result = await dbPool.query('SELECT data FROM app_state WHERE id = 1');
+    return result.rows[0].data;
+  }
   if (!fs.existsSync(DATA_FILE)) {
     const data = seedStore();
-    saveStore(data);
+    await saveStore(data);
     return data;
   }
   return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
 }
 
-function saveStore(data) {
+async function saveStore(data) {
+  if (dbPool) {
+    await ensureDatabase();
+    await dbPool.query('UPDATE app_state SET data = $1::jsonb, updated_at = NOW() WHERE id = 1', [JSON.stringify(data)]);
+    return;
+  }
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   const tmp = DATA_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
@@ -169,7 +201,7 @@ function mime(file) {
 async function api(req, res, url) {
   const method = req.method;
   const pathname = url.pathname;
-  const store = loadStore();
+  const store = await loadStore();
 
   if (pathname === '/api/catalog' && method === 'GET') return json(res, 200, publicCatalog(store));
   if (pathname === '/api/health' && method === 'GET') return json(res, 200, { ok: true, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY) });
@@ -181,7 +213,7 @@ async function api(req, res, url) {
     if (event.type === 'checkout.session.completed') {
       const id = event.data?.object?.metadata?.order_id;
       const order = store.orders.find(o => o.id === id);
-      if (order) { order.status = 'paid'; order.paidAt = now(); saveStore(store); }
+      if (order) { order.status = 'paid'; order.paidAt = now(); await saveStore(store); }
     }
     return json(res, 200, { received: true });
   }
@@ -209,7 +241,7 @@ async function api(req, res, url) {
     }
     const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, note: cleanText(body.note, 600), items, total };
     store.orders.unshift(order);
-    saveStore(store);
+    await saveStore(store);
 
     if (payment === 'stripe') {
       const params = {
@@ -224,10 +256,10 @@ async function api(req, res, url) {
       });
       try {
         const session = await stripeRequest('/v1/checkout/sessions', params);
-        order.stripeSessionId = session.id; saveStore(store);
+        order.stripeSessionId = session.id; await saveStore(store);
         return json(res, 201, { orderId: order.id, checkoutUrl: session.url });
       } catch (error) {
-        order.status = 'payment_error'; order.paymentError = error.message; saveStore(store);
+        order.status = 'payment_error'; order.paymentError = error.message; await saveStore(store);
         return json(res, 502, { error: 'A bankkártyás fizetés nem indítható. Próbáld újra vagy válassz készpénzt.', orderId: order.id });
       }
     }
@@ -252,7 +284,7 @@ async function api(req, res, url) {
     const current = hashPassword(String(body.currentPassword || ''), store.admin.salt).hash;
     if (!safeEqual(current, store.admin.hash)) return json(res, 400, { error: 'A jelenlegi jelszó nem megfelelő.' });
     if (String(body.newPassword || '').length < 10) return json(res, 400, { error: 'Az új jelszó legalább 10 karakter legyen.' });
-    store.admin = hashPassword(String(body.newPassword)); saveStore(store);
+    store.admin = hashPassword(String(body.newPassword)); await saveStore(store);
     return json(res, 200, { ok: true });
   }
 
@@ -263,19 +295,19 @@ async function api(req, res, url) {
     if (method === 'POST' && !id) {
       const record = buildRecord(key, body, store, uid(key === 'products' ? 'item-' : ''));
       if (record.error) return json(res, 400, { error: record.error });
-      store[key].push(record); saveStore(store); return json(res, 201, record);
+      store[key].push(record); await saveStore(store); return json(res, 201, record);
     }
     const index = store[key].findIndex(x => x.id === id);
     if (index < 0) return json(res, 404, { error: 'Nem található.' });
     if (method === 'PUT') {
       const record = buildRecord(key, body, store, id);
       if (record.error) return json(res, 400, { error: record.error });
-      store[key][index] = record; saveStore(store); return json(res, 200, record);
+      store[key][index] = record; await saveStore(store); return json(res, 200, record);
     }
     if (method === 'DELETE') {
       if (key === 'categories' && store.products.some(p => p.categoryId === id)) return json(res, 409, { error: 'A kategóriához termék tartozik. Előbb módosítsd a terméket.' });
       if (key === 'colors' && store.products.some(p => p.colorIds.includes(id))) return json(res, 409, { error: 'A színhez termék tartozik. Előbb módosítsd a terméket.' });
-      store[key].splice(index, 1); saveStore(store); return json(res, 200, { ok: true });
+      store[key].splice(index, 1); await saveStore(store); return json(res, 200, { ok: true });
     }
   }
 
@@ -285,7 +317,7 @@ async function api(req, res, url) {
     if (!order) return json(res, 404, { error: 'A rendelés nem található.' });
     const allowed = ['new', 'awaiting_payment', 'paid', 'preparing', 'ready', 'completed', 'cancelled', 'payment_error'];
     if (!allowed.includes(body.status)) return json(res, 400, { error: 'Érvénytelen állapot.' });
-    order.status = body.status; order.updatedAt = now(); saveStore(store); return json(res, 200, order);
+    order.status = body.status; order.updatedAt = now(); await saveStore(store); return json(res, 200, order);
   }
   return json(res, 404, { error: 'Nincs ilyen végpont.' });
 }
@@ -323,8 +355,17 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`Virág Állomás: ${PUBLIC_URL}`);
-  console.log(`Admin: ${PUBLIC_URL}/admin`);
-  if (!process.env.STRIPE_SECRET_KEY) console.log('Stripe nincs konfigurálva; a készpénzes rendelés működik.');
+async function startServer() {
+  await ensureDatabase();
+  server.listen(PORT, () => {
+    console.log(`Virág Állomás: ${PUBLIC_URL}`);
+    console.log(`Admin: ${PUBLIC_URL}/admin`);
+    console.log(dbPool ? 'PostgreSQL adattárolás aktív.' : 'Helyi JSON adattárolás aktív.');
+    if (!process.env.STRIPE_SECRET_KEY) console.log('Stripe nincs konfigurálva; a készpénzes rendelés működik.');
+  });
+}
+
+startServer().catch(error => {
+  console.error('Az adatbázis vagy a szerver nem indítható:', error);
+  process.exit(1);
 });
