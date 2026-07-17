@@ -233,7 +233,7 @@ async function sendNotification({ subject, replyTo, text }) {
 }
 
 function orderNotification(order) {
-  const lines = order.items.map(item => `${item.quantity} × ${item.name} (${item.sizeName}) — ${item.price * item.quantity} Ft`).join('\n');
+  const lines = order.items.map(item => `${item.quantity} × ${item.name} (${item.sizeName}${item.colorName ? `, ${item.colorName}` : ''}) — ${item.price * item.quantity} Ft`).join('\n');
   return sendNotification({
     subject: `Új webshop rendelés: ${order.id}`,
     replyTo: order.customer.email,
@@ -336,7 +336,9 @@ async function api(req, res, url) {
       if (!product) return json(res, 400, { error: 'A kosár egyik terméke már nem elérhető.' });
       const size = product.sizes.find(option => option.id === line.sizeId) || product.sizes[0];
       if (!size) return json(res, 400, { error: 'Válassz elérhető méretet minden termékhez.' });
-      items.push({ productId: product.id, name: product.name, sizeId: size.id, sizeName: size.name, price: size.price, quantity, image: product.images?.[0] || '' });
+      const color = store.colors.find(option => option.id === line.colorId && product.colorIds.includes(option.id));
+      if (!color) return json(res, 400, { error: 'Válassz elérhető színt minden termékhez.' });
+      items.push({ productId: product.id, name: product.name, sizeId: size.id, sizeName: size.name, colorId: color.id, colorName: color.name, price: size.price, quantity, image: product.images?.[0] || '' });
       total += size.price * quantity;
     }
     const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, note: cleanText(body.note, 600), items, total };
@@ -353,7 +355,7 @@ async function api(req, res, url) {
         params[`line_items[${i}][quantity]`] = String(item.quantity);
         params[`line_items[${i}][price_data][currency]`] = 'huf';
         params[`line_items[${i}][price_data][unit_amount]`] = String(item.price);
-        params[`line_items[${i}][price_data][product_data][name]`] = `${item.name} — ${item.sizeName}`;
+        params[`line_items[${i}][price_data][product_data][name]`] = `${item.name} — ${item.sizeName}, ${item.colorName}`;
       });
       try {
         const session = await stripeRequest('/v1/checkout/sessions', params);
@@ -476,6 +478,7 @@ function buildRecord(key, body, store, id) {
   const price = Math.min(...sizes.map(size => size.price));
   if (!store.categories.some(x => x.id === body.categoryId)) return { error: 'Válassz kategóriát.' };
   const colorIds = Array.isArray(body.colorIds) ? body.colorIds.filter(cid => store.colors.some(x => x.id === cid)) : [];
+  if (!colorIds.length) return { error: 'Válassz legalább egy rendelhető színt.' };
   const images = Array.isArray(body.images) ? body.images.filter(x => typeof x === 'string' && (x.startsWith('data:image/') || x.startsWith('/assets/'))).slice(0, 6) : [];
   return { id, name, description: cleanText(body.description, 1200), price, sizes, categoryId: body.categoryId, colorIds, images, seasonal: Boolean(body.seasonal), featured: Boolean(body.featured), active: body.active !== false };
 }

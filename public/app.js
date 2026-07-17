@@ -124,6 +124,10 @@ function colorName(id) { return localized(state.catalog.colors.find(x => x.id ==
 function productById(id) { return state.catalog.products.find(x => x.id === id); }
 function productSizes(product) { return Array.isArray(product?.sizes) && product.sizes.length ? product.sizes : [{ id: 'default', name: 'Normál', price: Number(product?.price) || 0 }]; }
 function sizeForLine(line, product = productById(line.productId)) { return productSizes(product).find(size => size.id === line.sizeId) || productSizes(product)[0]; }
+function colorForLine(line, product = productById(line.productId)) {
+  const colorId = product?.colorIds?.includes(line.colorId) ? line.colorId : product?.colorIds?.[0];
+  return state.catalog.colors.find(color => color.id === colorId);
+}
 function priceRange(product) {
   const prices = productSizes(product).map(size => size.price);
   const min = Math.min(...prices), max = Math.max(...prices);
@@ -198,26 +202,29 @@ function saveCart() {
   renderCart();
 }
 
-function addToCart(productId, sizeId) {
+function addToCart(productId, sizeId, colorId) {
   const product = productById(productId); if (!product) return;
   const size = productSizes(product).find(option => option.id === sizeId) || productSizes(product)[0];
-  const line = state.cart.find(x => x.productId === productId && sizeForLine(x, product).id === size.id);
+  const color = state.catalog.colors.find(option => option.id === colorId && product.colorIds.includes(option.id));
+  if (!color) { showToast(tr('Válassz színt a csokorhoz.', 'Choose a colour for the bouquet.')); return false; }
+  const line = state.cart.find(x => x.productId === productId && sizeForLine(x, product).id === size.id && colorForLine(x, product)?.id === color.id);
   if (line) line.quantity = Math.min(20, line.quantity + 1);
-  else state.cart.push({ productId, sizeId: size.id, quantity: 1 });
+  else state.cart.push({ productId, sizeId: size.id, colorId: color.id, quantity: 1 });
   saveCart();
   showToast(tr('A csokor a kosárba került.', 'The bouquet was added to your cart.'));
+  return true;
 }
 
 function renderCart() {
-  state.cart = state.cart.filter(line => productById(line.productId));
+  state.cart = state.cart.filter(line => productById(line.productId) && colorForLine(line));
   const count = state.cart.reduce((sum, line) => sum + line.quantity, 0);
   $('.cart-count').textContent = count;
   dom.cartLines.innerHTML = state.cart.map(line => {
     const product = productById(line.productId);
-    const size = sizeForLine(line, product); line.sizeId = size.id;
-    return `<div class="cart-line" data-product-id="${escapeHtml(line.productId)}" data-size-id="${escapeHtml(size.id)}">
+    const size = sizeForLine(line, product), color = colorForLine(line, product); line.sizeId = size.id; line.colorId = color.id;
+    return `<div class="cart-line" data-product-id="${escapeHtml(line.productId)}" data-size-id="${escapeHtml(size.id)}" data-color-id="${escapeHtml(color.id)}">
       <img src="${escapeHtml(product.images?.[0] || '/assets/hero-bouquet.png')}" alt="">
-      <div><h4>${escapeHtml(localized(product.name))}</h4><div class="line-size">${tr('Méret', 'Size')}: ${escapeHtml(size.name)}</div><div class="line-price">${money(size.price * line.quantity)}</div><div class="qty"><button data-delta="-1" aria-label="${tr('Mennyiség csökkentése', 'Decrease quantity')}">−</button><span>${line.quantity}</span><button data-delta="1" aria-label="${tr('Mennyiség növelése', 'Increase quantity')}">+</button></div></div>
+      <div><h4>${escapeHtml(localized(product.name))}</h4><div class="line-size">${tr('Méret', 'Size')}: ${escapeHtml(size.name)}</div><div class="line-color">${tr('Szín', 'Colour')}: ${escapeHtml(localized(color.name))}</div><div class="line-price">${money(size.price * line.quantity)}</div><div class="qty"><button data-delta="-1" aria-label="${tr('Mennyiség csökkentése', 'Decrease quantity')}">−</button><span>${line.quantity}</span><button data-delta="1" aria-label="${tr('Mennyiség növelése', 'Increase quantity')}">+</button></div></div>
       <button class="remove-line" aria-label="${tr('Termék eltávolítása', 'Remove item')}">×</button>
     </div>`;
   }).join('');
@@ -238,7 +245,8 @@ function closeFilters() { $('.filters').classList.remove('open'); if (!dom.cartD
 function showProduct(id) {
   const p = productById(id); if (!p) return;
   const sizes = productSizes(p);
-  $('#productDialogContent').innerHTML = `<div class="product-detail"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}"><div class="product-detail-copy"><p class="eyebrow">${escapeHtml(categoryName(p.categoryId))}</p><h2>${escapeHtml(localized(p.name))}</h2><div class="detail-price" id="selectedSizePrice">${money(sizes[0].price)}</div><p class="description">${escapeHtml(localized(p.description))}</p>${p.seasonal ? `<div class="seasonal-note"><strong>${tr('Szezonális termék', 'Seasonal product')}</strong><span>${tr('A csokor a készítő fantáziája és az aktuálisan elérhető virágok alapján készül, ezért nem lesz teljesen azonos a képen láthatóval.', 'The bouquet is created using the florist\'s imagination and the flowers currently available, so it will not be identical to the picture.')}</span></div>` : ''}<label class="size-picker"><span>${tr('Válassz méretet', 'Choose a size')}</span><select id="productSizeSelect">${sizes.map(size => `<option value="${escapeHtml(size.id)}" data-price="${size.price}">${escapeHtml(size.name)} — ${money(size.price)}</option>`).join('')}</select></label><div class="detail-tags">${p.colorIds.map(id => `<span>${escapeHtml(colorName(id))}</span>`).join('')}<span>${tr('Kézzel kötött', 'Hand-tied')}</span><span>${tr('Személyes átvétel', 'In-store pickup')}</span></div><button class="button button-primary full modal-add" data-id="${escapeHtml(p.id)}">${tr('Kosárba teszem', 'Add to cart')}</button></div></div>`;
+  const colors = p.colorIds.map(colorId => state.catalog.colors.find(color => color.id === colorId)).filter(Boolean);
+  $('#productDialogContent').innerHTML = `<div class="product-detail"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}"><div class="product-detail-copy"><p class="eyebrow">${escapeHtml(categoryName(p.categoryId))}</p><h2>${escapeHtml(localized(p.name))}</h2><div class="detail-price" id="selectedSizePrice">${money(sizes[0].price)}</div><p class="description">${escapeHtml(localized(p.description))}</p>${p.seasonal ? `<div class="seasonal-note"><strong>${tr('Szezonális termék', 'Seasonal product')}</strong><span>${tr('A csokor a készítő fantáziája és az aktuálisan elérhető virágok alapján készül, ezért nem lesz teljesen azonos a képen láthatóval.', 'The bouquet is created using the florist\'s imagination and the flowers currently available, so it will not be identical to the picture.')}</span></div>` : ''}<label class="size-picker"><span>${tr('Válassz méretet', 'Choose a size')}</span><select id="productSizeSelect">${sizes.map(size => `<option value="${escapeHtml(size.id)}" data-price="${size.price}">${escapeHtml(size.name)} — ${money(size.price)}</option>`).join('')}</select></label><label class="color-picker"><span>${tr('Válassz színt', 'Choose a colour')}</span><select id="productColorSelect" required><option value="">${tr('Válassz…', 'Choose…')}</option>${colors.map(color => `<option value="${escapeHtml(color.id)}">${escapeHtml(localized(color.name))}</option>`).join('')}</select></label><div class="detail-tags"><span>${tr('Kézzel kötött', 'Hand-tied')}</span><span>${tr('Személyes átvétel', 'In-store pickup')}</span></div><button class="button button-primary full modal-add" data-id="${escapeHtml(p.id)}">${tr('Kosárba teszem', 'Add to cart')}</button></div></div>`;
   $('#productDialog').dataset.productId = id;
   if (!$('#productDialog').open) $('#productDialog').showModal();
 }
@@ -292,7 +300,7 @@ dom.backdrop.addEventListener('click', closePanels);
 
 dom.cartLines.addEventListener('click', event => {
   const row = event.target.closest('.cart-line'); if (!row) return;
-  const line = state.cart.find(x => x.productId === row.dataset.productId && sizeForLine(x).id === row.dataset.sizeId); if (!line) return;
+  const line = state.cart.find(x => x.productId === row.dataset.productId && sizeForLine(x).id === row.dataset.sizeId && colorForLine(x)?.id === row.dataset.colorId); if (!line) return;
   if (event.target.closest('[data-delta]')) { line.quantity += Number(event.target.closest('[data-delta]').dataset.delta); if (line.quantity < 1) state.cart = state.cart.filter(x => x !== line); saveCart(); }
   if (event.target.closest('.remove-line')) { state.cart = state.cart.filter(x => x !== line); saveCart(); }
 });
@@ -312,7 +320,11 @@ dom.checkoutForm.addEventListener('submit', async event => {
 });
 
 $('#productDialog').addEventListener('change', event => { if (event.target.matches('#productSizeSelect')) $('#selectedSizePrice').textContent = money(Number(event.target.selectedOptions[0].dataset.price)); });
-$('#productDialog').addEventListener('click', event => { if (event.target === $('#productDialog') || event.target.closest('.dialog-close')) $('#productDialog').close(); if (event.target.closest('.modal-add')) { addToCart(event.target.closest('.modal-add').dataset.id, $('#productSizeSelect').value); $('#productDialog').close(); openCart(); } });
+$('#productDialog').addEventListener('click', event => {
+  if (event.target === $('#productDialog') || event.target.closest('.dialog-close')) $('#productDialog').close();
+  const addButton = event.target.closest('.modal-add');
+  if (addButton && addToCart(addButton.dataset.id, $('#productSizeSelect').value, $('#productColorSelect').value)) { $('#productDialog').close(); openCart(); }
+});
 $('#infoDialog').addEventListener('click', event => { if (event.target === $('#infoDialog') || event.target.closest('.dialog-close')) $('#infoDialog').close(); });
 $$('[data-info]').forEach(button => button.addEventListener('click', () => showInfo(button.dataset.info)));
 $('.menu-button').addEventListener('click', event => { const nav = $('.main-nav'); nav.classList.toggle('open'); event.currentTarget.setAttribute('aria-expanded', nav.classList.contains('open')); });

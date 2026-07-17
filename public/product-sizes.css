@@ -1,16 +1,19 @@
-.size-picker {
+.size-picker,
+.color-picker {
   display: block;
   margin: 22px 0;
 }
 
-.size-picker span {
+.size-picker span,
+.color-picker span {
   display: block;
   margin-bottom: 8px;
   font-size: 12px;
   font-weight: 600;
 }
 
-.size-picker select {
+.size-picker select,
+.color-picker select {
   width: 100%;
   min-height: 50px;
   padding: 0 13px;
@@ -18,7 +21,8 @@
   background: #fff;
 }
 
-.cart-line .line-size {
+.cart-line .line-size,
+.cart-line .line-color {
   color: var(--muted);
   font-size: 12px;
   margin: -1px 0 5px;

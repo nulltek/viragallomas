@@ -64,7 +64,7 @@ function filteredOrders() {
 }
 function renderOrders() {
   const orders = filteredOrders();
-  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td><td><button class="open-order" type="button" data-order-id="${esc(o.id)}">Megnyitás</button></td></tr>`).join('');
+  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)}${i.colorName ? `, ${esc(i.colorName)}` : ''})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td><td><button class="open-order" type="button" data-order-id="${esc(o.id)}">Megnyitás</button></td></tr>`).join('');
   $('#ordersEmpty').hidden = orders.length > 0;
 }
 
@@ -86,7 +86,7 @@ function openOrderDetails(orderId) {
     <div class="order-detail-items">${items.map(item => `
       <article class="order-detail-item">
         <img src="${esc(item.image || '/assets/hero-bouquet.png')}" alt="${esc(item.name || 'Termék')}">
-        <div><h3>${esc(item.name || '—')}</h3><p>${item.sizeName ? `Méret: ${esc(item.sizeName)}` : 'Méret: —'}</p></div>
+        <div><h3>${esc(item.name || '—')}</h3><p>${item.sizeName ? `Méret: ${esc(item.sizeName)}` : 'Méret: —'}<br>${item.colorName ? `Szín: ${esc(item.colorName)}` : 'Szín: —'}</p></div>
         <div class="order-item-prices">
           <div><span>Egységár</span><strong>${money(item.price || 0)}</strong></div>
           <div><span>Mennyiség</span><strong>${Number(item.quantity) || 0} db</strong></div>
@@ -223,7 +223,7 @@ function openProductEditor(product = null, { duplicate = false } = {}) {
   $('#productFormTitle').textContent = duplicate ? 'Termék másolása' : product ? 'Termék szerkesztése' : 'Új termék'; $('[name=id]', form).value = duplicate ? '' : product?.id || '';
   $('[name=name]', form).value = product ? `${product.name}${duplicate ? ' másolat' : ''}` : ''; $('[name=description]', form).value = product?.description || '';
   $('[name=categoryId]', form).innerHTML = `<option value="">Válassz…</option>${state.data.categories.map(c => `<option value="${esc(c.id)}" ${product?.categoryId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}`;
-  $('#productColors').innerHTML = state.data.colors.map(c => `<label><input type="checkbox" value="${esc(c.id)}" ${product?.colorIds?.includes(c.id) ? 'checked' : ''}><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(c.hex)}"></i> ${esc(c.name)}</label>`).join('');
+  $('#productColors').innerHTML = `<small class="color-options-help">Több színt is kiválaszthatsz. Új színt a Színek menüben adhatsz hozzá.</small>${state.data.colors.map(c => `<label><input type="checkbox" value="${esc(c.id)}" ${product?.colorIds?.includes(c.id) ? 'checked' : ''}><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(c.hex)}"></i> ${esc(c.name)}</label>`).join('')}`;
   $('[name=seasonal]', form).checked = Boolean(product?.seasonal); $('[name=featured]', form).checked = Boolean(product?.featured); $('[name=active]', form).checked = product ? product.active !== false : true;
   renderSizeOptions(); renderPreviews(); $('#productEditor').showModal();
 }
@@ -282,7 +282,9 @@ $$('#productEditor .dialog-close, .cancel-product').forEach(button => button.add
 $('#productForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = data.get('id'), button = $('button[type=submit]', form); setError(form); button.disabled = true;
   const sizes = $$('.size-option-row').map(row => ({ id: row.dataset.id, name: $('.size-name', row).value, price: Number($('.size-price', row).value) }));
-  const payload = { name: data.get('name'), description: data.get('description'), sizes, categoryId: data.get('categoryId'), colorIds: $$('#productColors input:checked').map(x => x.value), images: state.currentImages, seasonal: $('[name=seasonal]', form).checked, featured: $('[name=featured]', form).checked, active: $('[name=active]', form).checked };
+  const colorIds = $$('#productColors input:checked').map(x => x.value);
+  if (!colorIds.length) { setError(form, 'Válassz legalább egy rendelhető színt. Több színt is megjelölhetsz.'); button.disabled = false; return; }
+  const payload = { name: data.get('name'), description: data.get('description'), sizes, categoryId: data.get('categoryId'), colorIds, images: state.currentImages, seasonal: $('[name=seasonal]', form).checked, featured: $('[name=featured]', form).checked, active: $('[name=active]', form).checked };
   try { await request(`/api/admin/products${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); $('#productEditor').close(); await loadData(); toast('Termék mentve.'); }
   catch (error) { setError(form, error.message); }
   finally { button.disabled = false; }
