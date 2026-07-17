@@ -54,7 +54,7 @@ function renderOverview() {
   const openOrders = state.data.orders.filter(o => !['completed', 'cancelled'].includes(o.status)).length;
   const revenue = state.data.orders.filter(o => ['paid', 'preparing', 'ready', 'completed'].includes(o.status)).reduce((s, o) => s + o.total, 0);
   $('#stats').innerHTML = `<article class="stat"><span>Aktív termék</span><strong>${activeProducts}</strong><small>${state.data.products.length} összesen</small></article><article class="stat"><span>Nyitott rendelés</span><strong>${openOrders}</strong><small>figyelmet igényel</small></article><article class="stat"><span>Fizetett forgalom</span><strong>${money(revenue)}</strong><small>összesített</small></article><article class="stat"><span>Kategóriák</span><strong>${state.data.categories.length}</strong><small>${state.data.colors.length} színvilág</small></article>`;
-  $('#recentOrders').innerHTML = state.data.orders.slice(0, 5).map(o => `<div class="recent-order"><strong>${esc(o.id)} · ${esc(o.customer.name)}</strong><span>${dateTime(o.createdAt)} · ${money(o.total)}</span><i class="status status-${o.status}">${statusLabels[o.status] || o.status}</i></div>`).join('') || '<p class="muted">Még nem érkezett rendelés.</p>';
+  $('#recentOrders').innerHTML = state.data.orders.slice(0, 5).map(o => `<button class="recent-order open-order-card" data-order-id="${esc(o.id)}"><strong>${esc(o.id)} · ${esc(o.customer.name)}</strong><span>${dateTime(o.createdAt)} · ${money(o.total)}</span><i class="status status-${o.status}">${statusLabels[o.status] || o.status}</i></button>`).join('') || '<p class="muted">Még nem érkezett rendelés.</p>';
   $('#catalogSummary').innerHTML = `<div class="catalog-row"><span>Termékek</span><b>${state.data.products.length}</b></div><div class="catalog-row"><span>Kiemeltek</span><b>${state.data.products.filter(p => p.featured).length}</b></div><div class="catalog-row"><span>Rejtett termékek</span><b>${state.data.products.filter(p => p.active === false).length}</b></div><div class="catalog-row"><span>Feltöltött képek</span><b>${state.data.products.reduce((s, p) => s + (p.images?.length || 0), 0)}</b></div>`;
 }
 
@@ -64,8 +64,37 @@ function filteredOrders() {
 }
 function renderOrders() {
   const orders = filteredOrders();
-  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td></tr>`).join('');
+  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td><td><button class="open-order" type="button" data-order-id="${esc(o.id)}">Megnyitás</button></td></tr>`).join('');
   $('#ordersEmpty').hidden = orders.length > 0;
+}
+
+function openOrderDetails(orderId) {
+  const order = state.data.orders.find(item => item.id === orderId); if (!order) return;
+  const items = Array.isArray(order.items) ? order.items : [];
+  $('#orderDetailsContent').innerHTML = `
+    <div class="order-detail-heading">
+      <div><p class="eyebrow">Rendelés részletei</p><h2>${esc(order.id)}</h2><p>${dateTime(order.createdAt)}</p></div>
+      <i class="status status-${esc(order.status)}">${esc(statusLabels[order.status] || order.status)}</i>
+    </div>
+    <div class="order-customer-grid">
+      <div><span>Név</span><strong>${esc(order.customer?.name || '—')}</strong></div>
+      <div><span>Telefonszám</span><a href="tel:${esc(order.customer?.phone || '')}">${esc(order.customer?.phone || '—')}</a></div>
+      <div><span>E-mail</span><a href="mailto:${esc(order.customer?.email || '')}">${esc(order.customer?.email || '—')}</a></div>
+    </div>
+    ${order.note ? `<div class="order-note"><span>Vásárlói leírás / megjegyzés</span>${esc(order.note)}</div>` : ''}
+    <h3 class="order-detail-section-title">Rendelt termékek</h3>
+    <div class="order-detail-items">${items.map(item => `
+      <article class="order-detail-item">
+        <img src="${esc(item.image || '/assets/hero-bouquet.png')}" alt="${esc(item.name || 'Termék')}">
+        <div><h3>${esc(item.name || '—')}</h3><p>${item.sizeName ? `Méret: ${esc(item.sizeName)}` : 'Méret: —'}</p></div>
+        <div class="order-item-prices">
+          <div><span>Egységár</span><strong>${money(item.price || 0)}</strong></div>
+          <div><span>Mennyiség</span><strong>${Number(item.quantity) || 0} db</strong></div>
+          <div><span>Tétel összesen</span><strong>${money((Number(item.price) || 0) * (Number(item.quantity) || 0))}</strong></div>
+        </div>
+      </article>`).join('')}</div>
+    <div class="order-detail-total"><span>Rendelés végösszege</span><strong>${money(order.total || 0)}</strong></div>`;
+  if (!$('#orderDetailsDialog').open) $('#orderDetailsDialog').showModal();
 }
 
 function filteredCustomOrders() {
@@ -204,6 +233,20 @@ $('#sizeOptions').addEventListener('input', event => {
   if (event.target.matches('.size-name')) size.name = event.target.value;
   if (event.target.matches('.size-price')) size.price = event.target.value;
 });
+
+$('#ordersTable').addEventListener('click', event => {
+  const button = event.target.closest('.open-order');
+  if (button) openOrderDetails(button.dataset.orderId);
+});
+
+$('#recentOrders').addEventListener('click', event => {
+  const button = event.target.closest('.open-order-card');
+  if (button) openOrderDetails(button.dataset.orderId);
+});
+
+$('#orderDetailsDialog').addEventListener('click', event => {
+  if (event.target === $('#orderDetailsDialog') || event.target.closest('.dialog-close')) $('#orderDetailsDialog').close();
+});
 $('#sizeOptions').addEventListener('click', event => {
   const row = event.target.closest('.size-option-row');
   if (!row || !event.target.closest('.remove-size') || state.currentSizes.length === 1) return;
@@ -226,7 +269,7 @@ $('#imageInput').addEventListener('change', async event => {
   event.target.value = ''; renderPreviews();
 });
 $('#imagePreviews').addEventListener('click', event => { const preview = event.target.closest('.image-preview'); if (!preview || !event.target.closest('button')) return; state.currentImages.splice(Number(preview.dataset.index), 1); renderPreviews(); });
-$$('.dialog-close, .cancel-product').forEach(button => button.addEventListener('click', () => $('#productEditor').close()));
+$$('#productEditor .dialog-close, .cancel-product').forEach(button => button.addEventListener('click', () => $('#productEditor').close()));
 
 $('#productForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = data.get('id'), button = $('button[type=submit]', form); setError(form); button.disabled = true;

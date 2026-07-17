@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/admin.css">
   <link rel="stylesheet" href="/admin-sizes.css">
+  <link rel="stylesheet" href="/admin-order-details.css">
 </head>
 <body>
   <main class="login-page" id="loginPage">
@@ -45,7 +46,7 @@
 
       <section class="tab" data-panel="orders">
         <div class="panel toolbar"><label class="search"><span>⌕</span><input id="orderSearch" placeholder="Keresés név, e-mail vagy azonosító alapján…"></label><select id="orderStatusFilter"><option value="">Minden állapot</option><option value="new">Új</option><option value="awaiting_payment">Fizetésre vár</option><option value="paid">Fizetve</option><option value="preparing">Készül</option><option value="ready">Átvehető</option><option value="completed">Teljesítve</option><option value="cancelled">Törölve</option></select></div>
-        <div class="panel table-wrap"><table><thead><tr><th>Rendelés</th><th>Vásárló</th><th>Tartalom</th><th>Fizetés</th><th>Összeg</th><th>Állapot</th></tr></thead><tbody id="ordersTable"></tbody></table><div class="table-empty" id="ordersEmpty" hidden>Nincs a szűrésnek megfelelő rendelés.</div></div>
+        <div class="panel table-wrap"><table><thead><tr><th>Rendelés</th><th>Vásárló</th><th>Tartalom</th><th>Fizetés</th><th>Összeg</th><th>Állapot</th><th>Részletek</th></tr></thead><tbody id="ordersTable"></tbody></table><div class="table-empty" id="ordersEmpty" hidden>Nincs a szűrésnek megfelelő rendelés.</div></div>
       </section>
 
       <section class="tab" data-panel="customOrders">
@@ -82,6 +83,7 @@
   </main>
 
   <dialog id="productEditor"><button class="dialog-close" aria-label="Bezárás">×</button><form id="productForm"><div class="dialog-heading"><p class="eyebrow">Katalógus</p><h2 id="productFormTitle">Új termék</h2></div><input type="hidden" name="id"><div class="form-grid"><label>Név<input name="name" required></label><label class="wide">Leírás<textarea name="description" rows="4" required></textarea></label><div class="wide size-editor"><div class="size-editor-heading"><div><strong>Elérhető méretek és árak</strong><small>Adj meg minden rendelhető méretet külön árral.</small></div><button type="button" id="addSizeOption">+ Méret hozzáadása</button></div><div id="sizeOptions"></div></div><label>Kategória<select name="categoryId" required></select></label><fieldset><legend>Színek</legend><div class="color-checks" id="productColors"></div></fieldset><label class="wide">Képek <small>legfeljebb 6 kép, JPG/PNG/WebP</small><input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" multiple><span class="upload-hint">Húzd ide vagy válaszd ki a képeket</span></label><div class="image-previews wide" id="imagePreviews"></div><label class="toggle"><input name="featured" type="checkbox"><span></span>Kiemelt termék</label><label class="toggle"><input name="active" type="checkbox" checked><span></span>Megjelenik a webshopban</label></div><div class="dialog-actions"><button type="button" class="cancel-product">Mégse</button><button class="button" type="submit">Termék mentése</button></div><p class="form-error"></p></form></dialog>
+  <dialog id="orderDetailsDialog"><button class="dialog-close" aria-label="Rendelés részleteinek bezárása">×</button><div id="orderDetailsContent"></div></dialog>
   <div class="toast" id="adminToast"></div>
   <script src="/admin.js" defer></script>
 </body>
