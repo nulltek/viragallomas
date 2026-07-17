@@ -182,7 +182,14 @@ $('#customOrdersTable').addEventListener('change', async event => {
   catch (error) { toast(error.message); }
 });
 
-function resetEntityForm(form) { form.reset(); $('[name=id]', form).value = ''; $(`#${form.id.replace('Form', 'FormTitle')}`).textContent = form.id === 'categoryForm' ? 'Új kategória' : 'Új szín'; if (form.id === 'colorForm') $('[name=hex]', form).value = '#e7b6ab'; setError(form); }
+function resetEntityForm(form) {
+  const formId = form.getAttribute('id');
+  form.reset();
+  $('[name=id]', form).value = '';
+  $(`#${formId.replace('Form', 'FormTitle')}`).textContent = formId === 'categoryForm' ? 'Új kategória' : 'Új szín';
+  if (formId === 'colorForm') $('[name=hex]', form).value = '#e7b6ab';
+  setError(form);
+}
 $$('.cancel-edit').forEach(button => button.addEventListener('click', () => resetEntityForm(button.closest('form'))));
 
 ['category', 'color'].forEach(type => {
