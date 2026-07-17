@@ -111,7 +111,7 @@ function renderCustomOrders() {
 function renderProducts() {
   const term = ($('#productSearch')?.value || '').toLocaleLowerCase('hu');
   const products = state.data.products.filter(p => !term || `${p.name} ${p.description} ${catName(p.categoryId)}`.toLocaleLowerCase('hu').includes(term));
-  $('#adminProducts').innerHTML = products.map(p => `<article class="admin-product ${p.active === false ? 'inactive' : ''}" data-id="${esc(p.id)}"><img src="${esc(p.images?.[0] || '/assets/hero-bouquet.png')}" alt=""><div class="admin-product-copy"><h3>${esc(p.name)}</h3><p>${esc(catName(p.categoryId))} · ${priceRange(p)} · ${productSizes(p).length} méret${p.seasonal ? ' · Szezonális' : ''}${p.active === false ? ' · Rejtett' : ''}</p></div><div class="admin-product-actions"><button class="edit-product">Szerkesztés</button><button class="delete-product">Törlés</button></div></article>`).join('');
+  $('#adminProducts').innerHTML = products.map(p => `<article class="admin-product ${p.active === false ? 'inactive' : ''}" data-id="${esc(p.id)}"><img src="${esc(p.images?.[0] || '/assets/hero-bouquet.png')}" alt=""><div class="admin-product-copy"><h3>${esc(p.name)}</h3><p>${esc(catName(p.categoryId))} · ${priceRange(p)} · ${productSizes(p).length} méret${p.seasonal ? ' · Szezonális' : ''}${p.active === false ? ' · Rejtett' : ''}</p></div><div class="admin-product-actions"><button class="edit-product">Szerkesztés</button><button class="duplicate-product">Másolás</button><button class="delete-product">Törlés</button></div></article>`).join('');
 }
 
 function renderEntities() {
@@ -217,11 +217,11 @@ document.addEventListener('click', async event => {
   }
 });
 
-function openProductEditor(product = null) {
+function openProductEditor(product = null, { duplicate = false } = {}) {
   const form = $('#productForm'); form.reset(); setError(form); state.currentImages = product?.images ? [...product.images] : [];
-  state.currentSizes = product ? productSizes(product).map(size => ({ ...size })) : [{ id: '', name: 'Normál', price: '' }];
-  $('#productFormTitle').textContent = product ? 'Termék szerkesztése' : 'Új termék'; $('[name=id]', form).value = product?.id || '';
-  $('[name=name]', form).value = product?.name || ''; $('[name=description]', form).value = product?.description || '';
+  state.currentSizes = product ? productSizes(product).map(size => ({ ...size, id: duplicate ? '' : size.id })) : [{ id: '', name: 'Normál', price: '' }];
+  $('#productFormTitle').textContent = duplicate ? 'Termék másolása' : product ? 'Termék szerkesztése' : 'Új termék'; $('[name=id]', form).value = duplicate ? '' : product?.id || '';
+  $('[name=name]', form).value = product ? `${product.name}${duplicate ? ' másolat' : ''}` : ''; $('[name=description]', form).value = product?.description || '';
   $('[name=categoryId]', form).innerHTML = `<option value="">Válassz…</option>${state.data.categories.map(c => `<option value="${esc(c.id)}" ${product?.categoryId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}`;
   $('#productColors').innerHTML = state.data.colors.map(c => `<label><input type="checkbox" value="${esc(c.id)}" ${product?.colorIds?.includes(c.id) ? 'checked' : ''}><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(c.hex)}"></i> ${esc(c.name)}</label>`).join('');
   $('[name=seasonal]', form).checked = Boolean(product?.seasonal); $('[name=featured]', form).checked = Boolean(product?.featured); $('[name=active]', form).checked = product ? product.active !== false : true;
@@ -264,6 +264,7 @@ $('#addProduct').addEventListener('click', () => openProductEditor());
 $('#adminProducts').addEventListener('click', async event => {
   const card = event.target.closest('.admin-product'); if (!card) return; const product = state.data.products.find(p => p.id === card.dataset.id);
   if (event.target.closest('.edit-product')) openProductEditor(product);
+  if (event.target.closest('.duplicate-product')) openProductEditor(product, { duplicate: true });
   if (event.target.closest('.delete-product')) { if (!confirm(`Biztosan törlöd: ${product.name}?`)) return; try { await request(`/api/admin/products/${encodeURIComponent(product.id)}`, { method: 'DELETE' }); await loadData(); toast('Termék törölve.'); } catch (error) { toast(error.message); } }
 });
 
