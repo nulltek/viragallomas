@@ -28,10 +28,13 @@
       <a href="#rolunk">Rólunk</a>
       <a href="#kapcsolat">Kapcsolat</a>
     </nav>
-    <button class="cart-button icon-button" aria-label="Kosár megnyitása">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8.5h11l1 12h-13l1-12ZM9 9V6a3 3 0 0 1 6 0v3"/></svg>
-      <span class="cart-count" aria-live="polite">0</span>
-    </button>
+    <div class="header-tools">
+      <button class="language-toggle" id="languageToggle" type="button" aria-label="Switch to English">EN</button>
+      <button class="cart-button icon-button" aria-label="Kosár megnyitása">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 8.5h11l1 12h-13l1-12ZM9 9V6a3 3 0 0 1 6 0v3"/></svg>
+        <span class="cart-count" aria-live="polite">0</span>
+      </button>
+    </div>
   </header>
 
   <main id="top">
@@ -111,7 +114,7 @@
   <footer id="kapcsolat">
     <div class="footer-main shell">
       <div><a class="brand footer-brand" href="#top"><span>VIRÁG ÁLLOMÁS</span> <em>SZEGED</em></a><p>Virágba csomagolt üzenetek,<br>Szegeden, szeretettel.</p></div>
-      <div><h3>Kapcsolat</h3><a href="tel:+36301234567">+36 30 123 4567</a><a href="mailto:hello@viragallomasszeged.hu">hello@viragallomasszeged.hu</a><p>Szeged, Magyarország</p></div>
+      <div><h3>Kapcsolat</h3><a href="tel:+36202621726">+36 20 262 1726</a><a href="mailto:viola32ildiko@gmail.com">viola32ildiko@gmail.com</a><p>6721 Szeged, Szent Ferenc utca 1.</p></div>
       <div><h3>Nyitvatartás</h3><p>Hétfő–Péntek: 8:00–17:00<br>Szombat: 8:00–13:00<br>Vasárnap: zárva</p></div>
       <div><h3>Információ</h3><button class="footer-link" data-info="aszf">Általános szerződési feltételek</button><button class="footer-link" data-info="privacy">Adatkezelési tájékoztató</button><a href="/admin">Admin belépés</a></div>
     </div>
@@ -135,7 +138,7 @@
       <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
       <label>Telefonszám<input name="phone" type="tel" autocomplete="tel" required></label>
       <label>Megjegyzés <small>(opcionális)</small><textarea name="note" rows="3" placeholder="Például: a csokor köszöntőkártyájának szövege"></textarea></label>
-      <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label><input type="radio" name="payment" value="stripe"><span><b>Bankkártya</b><small>Biztonságos Stripe fizetés</small></span></label></fieldset>
+      <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label class="payment-disabled" aria-disabled="true"><input type="radio" name="payment" value="stripe" disabled><span><b>Bankkártya (Stripe)</b><small>Még nem elérhető</small></span></label></fieldset>
       <label class="terms"><input type="checkbox" required> <span>Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.</span></label>
       <button class="button button-primary full" type="submit">Rendelés leadása · <span id="checkoutTotal"></span></button>
       <p class="form-error" id="checkoutError" role="alert"></p>
