@@ -140,7 +140,7 @@
       <button class="button button-primary full" type="submit">Rendelés leadása · <span id="checkoutTotal"></span></button>
       <p class="form-error" id="checkoutError" role="alert"></p>
     </form>
-    <div class="order-success" id="orderSuccess" hidden><span>✓</span><h3>Köszönjük a rendelést!</h3><p>Rendelési azonosítód:</p><strong id="orderNumber"></strong><p>Hamarosan felvesszük veled a kapcsolatot az átvétel részleteivel.</p><button class="button button-primary drawer-close">Rendben</button></div>
+    <div class="order-success" id="orderSuccess" role="status" aria-live="polite" tabindex="-1" hidden><span>✓</span><h3>Rendelésed sikeresen leadva!</h3><p>Köszönjük, rendelésedet rögzítettük.</p><p>Rendelési azonosítód:</p><strong id="orderNumber"></strong><p>Hamarosan felvesszük veled a kapcsolatot az átvétel részleteivel.</p><button class="button button-primary drawer-close">Rendben</button></div>
   </aside>
 
   <dialog class="product-dialog" id="productDialog"><button class="dialog-close" aria-label="Bezárás">×</button><div id="productDialogContent"></div></dialog>

@@ -158,6 +158,8 @@ function handlePaymentReturn() {
 
 function showOrderSuccess(id) {
   dom.cartLines.hidden = true; dom.cartEmpty.hidden = true; dom.cartFooter.hidden = true; dom.checkoutForm.hidden = true; dom.orderSuccess.hidden = false; $('#orderNumber').textContent = id || '—';
+  dom.orderSuccess.focus();
+  showToast('Rendelésed sikeresen leadva!');
 }
 
 dom.grid.addEventListener('click', event => {
