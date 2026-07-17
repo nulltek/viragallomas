@@ -4,7 +4,13 @@ const translations = {
   eyebrow: ['Egyedi elképzelésed van?', 'Have something unique in mind?'], title: ['Megálmodjuk veled, virágba kötjük neked.', 'We dream it with you and bring it to life in flowers.'], intro: ['Írd le, milyen csokrot vagy virágkompozíciót szeretnél. A részletek és az ár egyeztetéséhez telefonon vagy e-mailben keresünk meg.', 'Tell us about the bouquet or floral arrangement you would like. We will contact you by phone or email to discuss the details and price.'],
   step1Title: ['Meséld el az elképzelésed', 'Tell us your idea'], step1Text: ['Színek, alkalom, hangulat vagy különleges virágok.', 'Colours, occasion, mood or special flowers.'], step2Title: ['Küldj inspirációt', 'Share inspiration'], step2Text: ['Legfeljebb 5 referenciafotót is csatolhatsz.', 'You can attach up to 5 reference images.'], step3Title: ['Egyeztetünk veled', 'We will contact you'], step3Text: ['Visszajelzünk a lehetőségekről, árról és átvételről.', 'We will discuss availability, price and pickup with you.'],
   formEyebrow: ['Egyedi rendelés', 'Custom order'], formTitle: ['Kérj személyre szabott virágot', 'Request a made-to-order arrangement'], name: ['Név', 'Name'], phone: ['Telefonszám', 'Phone number'], email: ['E-mail-cím', 'Email address'], description: ['Leírás', 'Description'], images: ['Referenciafotók', 'Reference images'], optional: ['(opcionális)', '(optional)'], chooseImages: ['Képek kiválasztása', 'Choose images'], imageHelp: ['JPG, PNG vagy WebP · legfeljebb 5 kép · maximum 4 MB/kép', 'JPG, PNG or WebP · up to 5 images · maximum 4 MB each'], submit: ['Egyedi igény elküldése', 'Send custom request'], privacy: ['Az adatokat kizárólag az igény egyeztetéséhez és teljesítéséhez használjuk.', 'We use your details only to discuss and fulfil your request.'], privacyLink: ['Adatkezelési tájékoztató', 'Privacy Notice'],
-  successTitle: ['Megkaptuk az egyedi rendelésed!', 'We received your custom request!'], successText: ['Köszönjük! Hamarosan felvesszük veled a kapcsolatot az egyeztetéshez.', 'Thank you! We will contact you shortly to discuss the details.'], requestId: ['Igényazonosítód:', 'Your request number:'], returnShop: ['Vissza a webshophoz', 'Back to the shop']
+  successTitle: ['Megkaptuk az egyedi rendelésed!', 'We received your custom request!'], successText: ['Köszönjük! Hamarosan felvesszük veled a kapcsolatot az egyeztetéshez.', 'Thank you! We will contact you shortly to discuss the details.'], requestId: ['Igényazonosítód:', 'Your request number:'], returnShop: ['Vissza a webshophoz', 'Back to the shop'],
+  contactFooter: ['Kapcsolat', 'Contact'], hoursFooter: ['Nyitvatartás', 'Opening hours']
+};
+
+const weekdayLabels = {
+  monday: ['Hétfő', 'Monday'], tuesday: ['Kedd', 'Tuesday'], wednesday: ['Szerda', 'Wednesday'], thursday: ['Csütörtök', 'Thursday'],
+  friday: ['Péntek', 'Friday'], saturday: ['Szombat', 'Saturday'], sunday: ['Vasárnap', 'Sunday']
 };
 
 const form = document.querySelector('#customOrderForm');
@@ -12,7 +18,16 @@ const imageInput = document.querySelector('#customImages');
 const previews = document.querySelector('#customImagePreviews');
 const errorBox = document.querySelector('#customOrderError');
 const languageToggle = document.querySelector('#customLanguageToggle');
-const state = { language: localStorage.getItem('va_language') === 'en' ? 'en' : 'hu', images: [] };
+const state = { language: localStorage.getItem('va_language') === 'en' ? 'en' : 'hu', images: [], openingHours: [] };
+
+function renderOpeningHours() {
+  const target = document.querySelector('#customOpeningHours');
+  target.innerHTML = state.openingHours.map(day => {
+    const label = weekdayLabels[day.id]?.[state.language === 'en' ? 1 : 0] || day.id;
+    const value = day.closed ? (state.language === 'en' ? 'closed' : 'zárva') : `${day.open}–${day.close}`;
+    return `<span><strong>${label}:</strong> ${value}</span>`;
+  }).join('');
+}
 
 function applyLanguage() {
   const english = state.language === 'en';
@@ -24,6 +39,16 @@ function applyLanguage() {
   description.placeholder = english ? description.dataset.placeholderEn : description.dataset.placeholderHu;
   languageToggle.textContent = english ? 'HU' : 'EN';
   languageToggle.setAttribute('aria-label', english ? 'Váltás magyar nyelvre' : 'Switch to English');
+  renderOpeningHours();
+}
+
+async function loadOpeningHours() {
+  try {
+    const response = await fetch('/api/catalog');
+    const catalog = await response.json();
+    if (response.ok && Array.isArray(catalog.openingHours)) state.openingHours = catalog.openingHours;
+  } catch {}
+  renderOpeningHours();
 }
 
 function showToast(message) {
@@ -75,3 +100,4 @@ form.addEventListener('submit', async event => {
 
 document.querySelector('#customYear').textContent = new Date().getFullYear();
 applyLanguage();
+loadOpeningHours();

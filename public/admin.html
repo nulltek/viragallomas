@@ -28,6 +28,7 @@
         <button data-tab="products"><i>❀</i> Termékek</button>
         <button data-tab="categories"><i>☷</i> Kategóriák</button>
         <button data-tab="colors"><i>◉</i> Színek</button>
+        <button data-tab="hours"><i>◷</i> Nyitvatartás</button>
         <button data-tab="security"><i>⌾</i> Biztonság</button>
       </nav>
       <div class="sidebar-bottom"><a href="/" target="_blank">Webshop megnyitása ↗</a><button id="logoutButton">Kijelentkezés</button></div>
@@ -62,6 +63,15 @@
 
       <section class="tab" data-panel="colors">
         <div class="split-panel"><div class="panel"><h2>Színek</h2><p class="muted">A vásárlók ezek alapján is szűrhetik a csokrokat.</p><div class="simple-list" id="colorList"></div></div><form class="panel entity-form" id="colorForm"><h2 id="colorFormTitle">Új szín</h2><input type="hidden" name="id"><label>Megnevezés<input name="name" required placeholder="Például: Púder"></label><label>Színminta<input name="hex" type="color" value="#e7b6ab"></label><div class="form-actions"><button class="cancel-edit" type="button">Mégse</button><button class="button compact" type="submit">Mentés</button></div><p class="form-error"></p></form></div>
+      </section>
+
+      <section class="tab" data-panel="hours">
+        <form class="panel opening-hours-form" id="openingHoursForm">
+          <div class="panel-heading"><div><h2>Heti nyitvatartás</h2><p class="muted">A mentett időpontok automatikusan megjelennek a webshop minden oldalán.</p></div></div>
+          <div class="hours-list" id="openingHoursEditor"></div>
+          <div class="form-actions"><button class="button" type="submit">Nyitvatartás mentése</button></div>
+          <p class="form-error"></p><p class="form-success"></p>
+        </form>
       </section>
 
       <section class="tab" data-panel="security">

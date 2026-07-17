@@ -11,6 +11,15 @@ const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessions = new Map();
+const notificationEmail = process.env.ORDER_NOTIFICATION_EMAIL || 'viola32ildiko@gmail.com';
+const mailTransport = process.env.SMTP_USER && process.env.SMTP_PASS ? require('nodemailer').createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT || 465),
+  secure: Number(process.env.SMTP_PORT || 465) === 465,
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  connectionTimeout: 8000,
+  socketTimeout: 12000
+}) : null;
 const dbPool = process.env.DATABASE_URL ? new (require('pg').Pool)({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false },
@@ -54,8 +63,37 @@ function seedStore() {
       { id: 'feher-harmonia', name: 'Fehér harmónia', description: 'Elegáns liliom, rózsa és rezgő kompozíció friss zöldekkel.', price: 19900, categoryId: 'csokrok', colorIds: ['feher'], images: ['/assets/feher-harmonia.png'], featured: true, active: true }
     ],
     orders: [],
-    customOrders: []
+    customOrders: [],
+    openingHours: defaultOpeningHours()
   };
+}
+
+function defaultOpeningHours() {
+  return [
+    { id: 'monday', open: '08:00', close: '17:00', closed: false },
+    { id: 'tuesday', open: '08:00', close: '17:00', closed: false },
+    { id: 'wednesday', open: '08:00', close: '17:00', closed: false },
+    { id: 'thursday', open: '08:00', close: '17:00', closed: false },
+    { id: 'friday', open: '08:00', close: '17:00', closed: false },
+    { id: 'saturday', open: '08:00', close: '13:00', closed: false },
+    { id: 'sunday', open: '', close: '', closed: true }
+  ];
+}
+
+function normalizeOpeningHours(value) {
+  const supplied = Array.isArray(value) ? value : [];
+  return defaultOpeningHours().map(fallback => {
+    const day = supplied.find(item => item && item.id === fallback.id);
+    if (!day) return fallback;
+    const closed = Boolean(day.closed);
+    const validTime = time => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ''));
+    return {
+      id: fallback.id,
+      open: closed ? '' : (validTime(day.open) ? day.open : fallback.open),
+      close: closed ? '' : (validTime(day.close) ? day.close : fallback.close),
+      closed
+    };
+  });
 }
 
 function normalizeStore(data) {
@@ -64,6 +102,7 @@ function normalizeStore(data) {
   data.products = Array.isArray(data.products) ? data.products : [];
   data.orders = Array.isArray(data.orders) ? data.orders : [];
   data.customOrders = Array.isArray(data.customOrders) ? data.customOrders : [];
+  data.openingHours = normalizeOpeningHours(data.openingHours);
   return data;
 }
 
@@ -162,11 +201,49 @@ function cleanText(value, max = 500) {
   return String(value || '').trim().slice(0, max);
 }
 
+async function sendNotification({ subject, replyTo, text }) {
+  if (!mailTransport) {
+    console.log('Rendelési e-mail nincs konfigurálva; a rendelés az admin felületen elérhető.');
+    return false;
+  }
+  try {
+    await mailTransport.sendMail({
+      from: `Virág Állomás webshop <${process.env.SMTP_USER}>`,
+      to: notificationEmail,
+      replyTo,
+      subject,
+      text
+    });
+    return true;
+  } catch (error) {
+    console.error('A rendelési értesítő e-mail küldése sikertelen:', error.message);
+    return false;
+  }
+}
+
+function orderNotification(order) {
+  const lines = order.items.map(item => `${item.quantity} × ${item.name} — ${item.price * item.quantity} Ft`).join('\n');
+  return sendNotification({
+    subject: `Új webshop rendelés: ${order.id}`,
+    replyTo: order.customer.email,
+    text: `Új rendelés érkezett a webshopból.\n\nAzonosító: ${order.id}\nNév: ${order.customer.name}\nE-mail: ${order.customer.email}\nTelefon: ${order.customer.phone}\nFizetés: ${order.payment === 'stripe' ? 'Stripe' : 'Készpénz az üzletben'}\nÁtvétel: Személyes átvétel\n\nTermékek:\n${lines}\n\nÖsszesen: ${order.total} Ft\nMegjegyzés: ${order.note || '—'}\n\nMegnyitás az adminban: ${PUBLIC_URL}/admin`
+  });
+}
+
+function customOrderNotification(order) {
+  return sendNotification({
+    subject: `Új egyedi virágrendelés: ${order.id}`,
+    replyTo: order.customer.email,
+    text: `Új egyedi virágrendelési igény érkezett.\n\nAzonosító: ${order.id}\nNév: ${order.customer.name}\nE-mail: ${order.customer.email}\nTelefon: ${order.customer.phone}\nReferenciafotók száma: ${order.images.length}\n\nLeírás:\n${order.description}\n\nA referenciafotók az admin felületen tekinthetők meg: ${PUBLIC_URL}/admin`
+  });
+}
+
 function publicCatalog(store) {
   return {
     categories: store.categories,
     colors: store.colors,
-    products: store.products.filter(p => p.active !== false)
+    products: store.products.filter(p => p.active !== false),
+    openingHours: store.openingHours
   };
 }
 
@@ -252,6 +329,7 @@ async function api(req, res, url) {
     const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, note: cleanText(body.note, 600), items, total };
     store.orders.unshift(order);
     await saveStore(store);
+    await orderNotification(order);
 
     if (payment === 'stripe') {
       const params = {
@@ -283,6 +361,7 @@ async function api(req, res, url) {
     const customOrder = { id: uid('EGR-').toUpperCase(), createdAt: now(), updatedAt: now(), status: 'new', customer: { name, email, phone }, description, images };
     store.customOrders.unshift(customOrder);
     await saveStore(store);
+    await customOrderNotification(customOrder);
     return json(res, 201, { customOrderId: customOrder.id });
   }
 
@@ -299,7 +378,19 @@ async function api(req, res, url) {
   if (pathname === '/api/admin/me' && method === 'GET') return json(res, getSession(req) ? 200 : 401, { authenticated: Boolean(getSession(req)) });
 
   if (pathname.startsWith('/api/admin/') && !requireAdmin(req, res)) return;
-  if (pathname === '/api/admin/data' && method === 'GET') return json(res, 200, { categories: store.categories, colors: store.colors, products: store.products, orders: store.orders, customOrders: store.customOrders, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), databaseConfigured: Boolean(dbPool) });
+  if (pathname === '/api/admin/data' && method === 'GET') return json(res, 200, { categories: store.categories, colors: store.colors, products: store.products, orders: store.orders, customOrders: store.customOrders, openingHours: store.openingHours, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), databaseConfigured: Boolean(dbPool) });
+  if (pathname === '/api/admin/opening-hours' && method === 'PUT') {
+    if (!Array.isArray(body.openingHours)) return json(res, 400, { error: 'A nyitvatartási adatok hiányoznak.' });
+    const expectedIds = defaultOpeningHours().map(day => day.id);
+    if (body.openingHours.length !== expectedIds.length || !expectedIds.every(id => body.openingHours.some(day => day?.id === id))) return json(res, 400, { error: 'Mind a hét nap nyitvatartását add meg.' });
+    for (const day of body.openingHours) {
+      if (!day.closed && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(day.open || '')) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(String(day.close || '')))) return json(res, 400, { error: 'A nyitási és zárási idő minden nyitva tartó napon kötelező.' });
+      if (!day.closed && day.open >= day.close) return json(res, 400, { error: 'A zárási időnek későbbinek kell lennie a nyitásnál.' });
+    }
+    store.openingHours = normalizeOpeningHours(body.openingHours);
+    await saveStore(store);
+    return json(res, 200, { openingHours: store.openingHours });
+  }
   if (pathname === '/api/admin/password' && method === 'PUT') {
     const current = hashPassword(String(body.currentPassword || ''), store.admin.salt).hash;
     if (!safeEqual(current, store.admin.hash)) return json(res, 400, { error: 'A jelenlegi jelszó nem megfelelő.' });

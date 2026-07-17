@@ -5,7 +5,10 @@ const money = v => new Intl.NumberFormat('hu-HU', { style: 'currency', currency:
 const dateTime = v => new Intl.DateTimeFormat('hu-HU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v));
 const statusLabels = { new: 'Új', awaiting_payment: 'Fizetésre vár', paid: 'Fizetve', preparing: 'Készül', ready: 'Átvehető', completed: 'Teljesítve', cancelled: 'Törölve', payment_error: 'Fizetési hiba' };
 const customStatusLabels = { new: 'Új', contacted: 'Kapcsolatfelvétel megtörtént', accepted: 'Elfogadva', completed: 'Teljesítve', declined: 'Elutasítva' };
-const state = { data: { categories: [], colors: [], products: [], orders: [], customOrders: [] }, currentImages: [] };
+const openingHourDays = [
+  ['monday', 'Hétfő'], ['tuesday', 'Kedd'], ['wednesday', 'Szerda'], ['thursday', 'Csütörtök'], ['friday', 'Péntek'], ['saturday', 'Szombat'], ['sunday', 'Vasárnap']
+];
+const state = { data: { categories: [], colors: [], products: [], orders: [], customOrders: [], openingHours: [] }, currentImages: [] };
 
 async function request(url, options = {}) {
   const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -23,12 +26,13 @@ function showApp() { $('#loginPage').hidden = true; $('#adminApp').hidden = fals
 async function loadData() {
   state.data = await request('/api/admin/data');
   state.data.customOrders = Array.isArray(state.data.customOrders) ? state.data.customOrders : [];
+  state.data.openingHours = Array.isArray(state.data.openingHours) ? state.data.openingHours : [];
   renderAll();
 }
 function catName(id) { return state.data.categories.find(x => x.id === id)?.name || '—'; }
 
 function renderAll() {
-  renderOverview(); renderOrders(); renderCustomOrders(); renderProducts(); renderEntities();
+  renderOverview(); renderOrders(); renderCustomOrders(); renderProducts(); renderEntities(); renderOpeningHoursEditor();
   $('#stripeChip').className = `stripe-chip ${state.data.stripeConfigured ? 'ok' : 'warn'}`;
   $('#stripeChip').textContent = state.data.stripeConfigured ? '● Stripe csatlakoztatva' : '○ Stripe beállításra vár';
   $('#newOrderCount').textContent = state.data.orders.filter(o => ['new', 'paid'].includes(o.status)).length || '';
@@ -76,10 +80,17 @@ function renderEntities() {
   $('#colorList').innerHTML = state.data.colors.map(c => `<div class="simple-row" data-id="${esc(c.id)}"><span><i style="background:${esc(c.hex)}"></i><b>${esc(c.name)}</b><small>${esc(c.hex)}</small></span><span><button class="edit-entity" data-type="color">Szerkesztés</button><button class="delete-entity" data-type="colors">Törlés</button></span></div>`).join('');
 }
 
+function renderOpeningHoursEditor() {
+  $('#openingHoursEditor').innerHTML = openingHourDays.map(([id, label]) => {
+    const day = state.data.openingHours.find(item => item.id === id) || { id, open: '08:00', close: '17:00', closed: false };
+    return `<div class="hours-row" data-day="${id}"><strong>${label}</strong><label>Nyitás<input class="hours-open" type="time" value="${esc(day.open || '08:00')}" ${day.closed ? 'disabled' : ''} required></label><label>Zárás<input class="hours-close" type="time" value="${esc(day.close || '17:00')}" ${day.closed ? 'disabled' : ''} required></label><label class="closed-toggle"><input class="hours-closed" type="checkbox" ${day.closed ? 'checked' : ''}>Zárva</label></div>`;
+  }).join('');
+}
+
 function switchTab(name) {
   $$('.sidebar nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
-  const names = { overview: ['Ma a virágpultnál', 'Áttekintés'], orders: ['Beérkezett igények', 'Rendelések'], customOrders: ['Személyre szabott virágok', 'Egyedi rendelések'], products: ['Webshop kínálat', 'Termékek'], categories: ['Katalógus rendszerezése', 'Kategóriák'], colors: ['Keresési szűrők', 'Színvilágok'], security: ['Admin hozzáférés', 'Biztonság'] };
+  const names = { overview: ['Ma a virágpultnál', 'Áttekintés'], orders: ['Beérkezett igények', 'Rendelések'], customOrders: ['Személyre szabott virágok', 'Egyedi rendelések'], products: ['Webshop kínálat', 'Termékek'], categories: ['Katalógus rendszerezése', 'Kategóriák'], colors: ['Keresési szűrők', 'Színvilágok'], hours: ['Üzleti információk', 'Nyitvatartás'], security: ['Admin hozzáférés', 'Biztonság'] };
   $('#pageEyebrow').textContent = names[name][0]; $('#pageTitle').textContent = names[name][1];
   $('.sidebar').classList.remove('open');
 }
@@ -101,6 +112,24 @@ $('.admin-menu').addEventListener('click', () => $('.sidebar').classList.toggle(
 $('#orderSearch').addEventListener('input', renderOrders); $('#orderStatusFilter').addEventListener('change', renderOrders);
 $('#customOrderSearch').addEventListener('input', renderCustomOrders); $('#customOrderStatusFilter').addEventListener('change', renderCustomOrders);
 $('#productSearch').addEventListener('input', renderProducts);
+
+$('#openingHoursEditor').addEventListener('change', event => {
+  if (!event.target.matches('.hours-closed')) return;
+  const row = event.target.closest('.hours-row');
+  $$('.hours-open, .hours-close', row).forEach(input => { input.disabled = event.target.checked; });
+});
+
+$('#openingHoursForm').addEventListener('submit', async event => {
+  event.preventDefault();
+  const form = event.currentTarget, button = $('button[type=submit]', form), success = $('.form-success', form);
+  setError(form); success.textContent = ''; button.disabled = true;
+  const openingHours = $$('.hours-row', form).map(row => ({ id: row.dataset.day, open: $('.hours-open', row).value, close: $('.hours-close', row).value, closed: $('.hours-closed', row).checked }));
+  try {
+    await request('/api/admin/opening-hours', { method: 'PUT', body: JSON.stringify({ openingHours }) });
+    await loadData(); success.textContent = 'A nyitvatartás elmentve és frissítve a webshopban.'; toast('Nyitvatartás frissítve.');
+  } catch (error) { setError(form, error.message); }
+  finally { button.disabled = false; }
+});
 
 $('#ordersTable').addEventListener('change', async event => {
   if (!event.target.matches('.order-status')) return; const row = event.target.closest('tr');

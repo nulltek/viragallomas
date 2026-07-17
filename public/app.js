@@ -45,6 +45,11 @@ const catalogTranslations = {
   'Elegáns liliom, rózsa és rezgő kompozíció friss zöldekkel.': "An elegant arrangement of lilies, roses and baby's breath with fresh greenery."
 };
 
+const weekdayLabels = {
+  monday: ['Hétfő', 'Monday'], tuesday: ['Kedd', 'Tuesday'], wednesday: ['Szerda', 'Wednesday'], thursday: ['Csütörtök', 'Thursday'],
+  friday: ['Péntek', 'Friday'], saturday: ['Szombat', 'Saturday'], sunday: ['Vasárnap', 'Sunday']
+};
+
 const originalTextNodes = new WeakMap();
 const originalAttributes = new WeakMap();
 const tr = (hu, en) => state.language === 'en' ? en : hu;
@@ -52,7 +57,7 @@ const localized = value => state.language === 'en' ? (catalogTranslations[value]
 
 const state = {
   language: localStorage.getItem('va_language') === 'en' ? 'en' : 'hu',
-  catalog: { products: [], categories: [], colors: [] },
+  catalog: { products: [], categories: [], colors: [], openingHours: [] },
   filters: { categories: new Set(), colors: new Set(), search: '', sort: 'featured' },
   cart: JSON.parse(localStorage.getItem('va_cart') || '[]')
 };
@@ -61,8 +66,17 @@ const dom = {
   grid: $('#productGrid'), empty: $('#emptyState'), result: $('#resultCount'),
   categoryFilters: $('#categoryFilters'), colorFilters: $('#colorFilters'), colorFinder: $('#colorFinder'),
   cartDrawer: $('#cartDrawer'), backdrop: $('#backdrop'), cartLines: $('#cartLines'), cartEmpty: $('#cartEmpty'), cartFooter: $('#cartFooter'),
-  checkoutForm: $('#checkoutForm'), orderSuccess: $('#orderSuccess'), toast: $('#toast'), languageToggle: $('#languageToggle')
+  checkoutForm: $('#checkoutForm'), orderSuccess: $('#orderSuccess'), toast: $('#toast'), languageToggle: $('#languageToggle'), openingHours: $('#openingHours')
 };
+
+function renderOpeningHours() {
+  if (!dom.openingHours) return;
+  dom.openingHours.innerHTML = (state.catalog.openingHours || []).map(day => {
+    const label = weekdayLabels[day.id]?.[state.language === 'en' ? 1 : 0] || day.id;
+    const value = day.closed ? tr('zárva', 'closed') : `${day.open}–${day.close}`;
+    return `<span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</span>`;
+  }).join('');
+}
 
 function applyLanguage() {
   document.documentElement.lang = state.language;
@@ -85,6 +99,7 @@ function applyLanguage() {
   });
   dom.languageToggle.textContent = state.language === 'hu' ? 'EN' : 'HU';
   dom.languageToggle.setAttribute('aria-label', state.language === 'hu' ? 'Switch to English' : 'Váltás magyar nyelvre');
+  renderOpeningHours();
 }
 
 function termsContent() {

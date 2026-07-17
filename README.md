@@ -40,6 +40,20 @@ Figyelt esemény: `checkout.session.completed`.
 
 Stripe kulcs nélkül a webshop készpénzes, személyes átvételes rendelési módja teljesen működik; a bankkártyás lehetőség érthető figyelmeztetést ad.
 
+## Rendelési e-mail értesítések
+
+A webshop- és egyedi rendelések e-mailben is elküldhetők a tulajdonosnak. Gmail használatakor kapcsold be a kétlépcsős azonosítást, hozz létre Google App Passwordöt, majd állítsd be a következő környezeti változókat:
+
+```text
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=viola32ildiko@gmail.com
+SMTP_PASS=a-16-karakteres-google-app-password
+ORDER_NOTIFICATION_EMAIL=viola32ildiko@gmail.com
+```
+
+Az App Passwordöt kizárólag a tárhelyszolgáltató titkos környezeti változójaként tárold, ne a forráskódban. Ha az e-mail küldés nincs konfigurálva vagy átmenetileg hibázik, a rendelés továbbra is elmentődik és megjelenik az admin felületen.
+
 ## Funkciók
 
 - reszponzív webshop, termékkeresés, kategória- és színszűrés, rendezés
@@ -50,6 +64,8 @@ Stripe kulcs nélkül a webshop készpénzes, személyes átvételes rendelési 
 - termékek, kategóriák és színek létrehozása, szerkesztése és törlése
 - termékenként legfeljebb 6 feltöltött kép
 - rendelések listázása, keresése, szűrése és állapotkezelése
+- adatbázisból kezelt heti nyitvatartás, amely minden publikus oldalon automatikusan frissül
+- webshop- és egyedi rendelési e-mail értesítések
 
 ## Élesítés előtt
 
