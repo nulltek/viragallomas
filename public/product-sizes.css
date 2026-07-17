@@ -1,0 +1,25 @@
+.size-picker {
+  display: block;
+  margin: 22px 0;
+}
+
+.size-picker span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.size-picker select {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.cart-line .line-size {
+  color: var(--muted);
+  font-size: 12px;
+  margin: -1px 0 5px;
+}

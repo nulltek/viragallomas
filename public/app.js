@@ -122,6 +122,14 @@ async function request(url, options = {}) {
 function categoryName(id) { return localized(state.catalog.categories.find(x => x.id === id)?.name || ''); }
 function colorName(id) { return localized(state.catalog.colors.find(x => x.id === id)?.name || ''); }
 function productById(id) { return state.catalog.products.find(x => x.id === id); }
+function productSizes(product) { return Array.isArray(product?.sizes) && product.sizes.length ? product.sizes : [{ id: 'default', name: 'Normál', price: Number(product?.price) || 0 }]; }
+function sizeForLine(line, product = productById(line.productId)) { return productSizes(product).find(size => size.id === line.sizeId) || productSizes(product)[0]; }
+function priceRange(product) {
+  const prices = productSizes(product).map(size => size.price);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  return min === max ? money(min) : `${money(min)} – ${money(max)}`;
+}
+function minimumPrice(product) { return Math.min(...productSizes(product).map(size => size.price)); }
 
 async function init() {
   try {
@@ -152,8 +160,8 @@ function filteredProducts() {
     return textMatch && categoryMatch && colorMatch;
   });
   return items.sort((a, b) => {
-    if (state.filters.sort === 'price-asc') return a.price - b.price;
-    if (state.filters.sort === 'price-desc') return b.price - a.price;
+    if (state.filters.sort === 'price-asc') return minimumPrice(a) - minimumPrice(b);
+    if (state.filters.sort === 'price-desc') return minimumPrice(b) - minimumPrice(a);
     if (state.filters.sort === 'name') return a.name.localeCompare(b.name, 'hu');
     return Number(b.featured) - Number(a.featured);
   });
@@ -167,7 +175,7 @@ function renderProducts() {
       <button class="product-image open-product" aria-label="${escapeHtml(localized(p.name))} ${tr('részletei', 'details')}"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}" loading="lazy"></button>
       <div class="product-card-body">
         <h3>${escapeHtml(localized(p.name))}</h3>
-        <div class="price">${money(p.price)}</div>
+        <div class="price">${priceRange(p)}</div>
         <div class="category">${escapeHtml(categoryName(p.categoryId))}</div>
         <button class="quick-add" aria-label="${escapeHtml(localized(p.name))} ${tr('kosárba', 'add to cart')}">+</button>
       </div>
@@ -190,10 +198,12 @@ function saveCart() {
   renderCart();
 }
 
-function addToCart(productId) {
-  const line = state.cart.find(x => x.productId === productId);
+function addToCart(productId, sizeId) {
+  const product = productById(productId); if (!product) return;
+  const size = productSizes(product).find(option => option.id === sizeId) || productSizes(product)[0];
+  const line = state.cart.find(x => x.productId === productId && sizeForLine(x, product).id === size.id);
   if (line) line.quantity = Math.min(20, line.quantity + 1);
-  else state.cart.push({ productId, quantity: 1 });
+  else state.cart.push({ productId, sizeId: size.id, quantity: 1 });
   saveCart();
   showToast(tr('A csokor a kosárba került.', 'The bouquet was added to your cart.'));
 }
@@ -204,13 +214,14 @@ function renderCart() {
   $('.cart-count').textContent = count;
   dom.cartLines.innerHTML = state.cart.map(line => {
     const product = productById(line.productId);
-    return `<div class="cart-line" data-id="${escapeHtml(line.productId)}">
+    const size = sizeForLine(line, product); line.sizeId = size.id;
+    return `<div class="cart-line" data-product-id="${escapeHtml(line.productId)}" data-size-id="${escapeHtml(size.id)}">
       <img src="${escapeHtml(product.images?.[0] || '/assets/hero-bouquet.png')}" alt="">
-      <div><h4>${escapeHtml(localized(product.name))}</h4><div class="line-price">${money(product.price * line.quantity)}</div><div class="qty"><button data-delta="-1" aria-label="${tr('Mennyiség csökkentése', 'Decrease quantity')}">−</button><span>${line.quantity}</span><button data-delta="1" aria-label="${tr('Mennyiség növelése', 'Increase quantity')}">+</button></div></div>
+      <div><h4>${escapeHtml(localized(product.name))}</h4><div class="line-size">${tr('Méret', 'Size')}: ${escapeHtml(size.name)}</div><div class="line-price">${money(size.price * line.quantity)}</div><div class="qty"><button data-delta="-1" aria-label="${tr('Mennyiség csökkentése', 'Decrease quantity')}">−</button><span>${line.quantity}</span><button data-delta="1" aria-label="${tr('Mennyiség növelése', 'Increase quantity')}">+</button></div></div>
       <button class="remove-line" aria-label="${tr('Termék eltávolítása', 'Remove item')}">×</button>
     </div>`;
   }).join('');
-  const total = state.cart.reduce((sum, line) => sum + productById(line.productId).price * line.quantity, 0);
+  const total = state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0);
   $('#cartTotal').textContent = money(total); $('#checkoutTotal').textContent = money(total);
   dom.cartEmpty.hidden = state.cart.length > 0;
   dom.cartFooter.hidden = !state.cart.length;
@@ -226,7 +237,8 @@ function closeFilters() { $('.filters').classList.remove('open'); if (!dom.cartD
 
 function showProduct(id) {
   const p = productById(id); if (!p) return;
-  $('#productDialogContent').innerHTML = `<div class="product-detail"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}"><div class="product-detail-copy"><p class="eyebrow">${escapeHtml(categoryName(p.categoryId))}</p><h2>${escapeHtml(localized(p.name))}</h2><div class="detail-price">${money(p.price)}</div><p class="description">${escapeHtml(localized(p.description))}</p><div class="detail-tags">${p.colorIds.map(id => `<span>${escapeHtml(colorName(id))}</span>`).join('')}<span>${tr('Kézzel kötött', 'Hand-tied')}</span><span>${tr('Személyes átvétel', 'In-store pickup')}</span></div><button class="button button-primary full modal-add" data-id="${escapeHtml(p.id)}">${tr('Kosárba teszem', 'Add to cart')}</button></div></div>`;
+  const sizes = productSizes(p);
+  $('#productDialogContent').innerHTML = `<div class="product-detail"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}"><div class="product-detail-copy"><p class="eyebrow">${escapeHtml(categoryName(p.categoryId))}</p><h2>${escapeHtml(localized(p.name))}</h2><div class="detail-price" id="selectedSizePrice">${money(sizes[0].price)}</div><p class="description">${escapeHtml(localized(p.description))}</p><label class="size-picker"><span>${tr('Válassz méretet', 'Choose a size')}</span><select id="productSizeSelect">${sizes.map(size => `<option value="${escapeHtml(size.id)}" data-price="${size.price}">${escapeHtml(size.name)} — ${money(size.price)}</option>`).join('')}</select></label><div class="detail-tags">${p.colorIds.map(id => `<span>${escapeHtml(colorName(id))}</span>`).join('')}<span>${tr('Kézzel kötött', 'Hand-tied')}</span><span>${tr('Személyes átvétel', 'In-store pickup')}</span></div><button class="button button-primary full modal-add" data-id="${escapeHtml(p.id)}">${tr('Kosárba teszem', 'Add to cart')}</button></div></div>`;
   $('#productDialog').dataset.productId = id;
   if (!$('#productDialog').open) $('#productDialog').showModal();
 }
@@ -263,7 +275,7 @@ function showOrderSuccess(id) {
 
 dom.grid.addEventListener('click', event => {
   const card = event.target.closest('.product-card'); if (!card) return;
-  if (event.target.closest('.quick-add')) addToCart(card.dataset.id);
+  if (event.target.closest('.quick-add')) showProduct(card.dataset.id);
   else if (event.target.closest('.open-product')) showProduct(card.dataset.id);
 });
 
@@ -280,7 +292,7 @@ dom.backdrop.addEventListener('click', closePanels);
 
 dom.cartLines.addEventListener('click', event => {
   const row = event.target.closest('.cart-line'); if (!row) return;
-  const line = state.cart.find(x => x.productId === row.dataset.id); if (!line) return;
+  const line = state.cart.find(x => x.productId === row.dataset.productId && sizeForLine(x).id === row.dataset.sizeId); if (!line) return;
   if (event.target.closest('[data-delta]')) { line.quantity += Number(event.target.closest('[data-delta]').dataset.delta); if (line.quantity < 1) state.cart = state.cart.filter(x => x !== line); saveCart(); }
   if (event.target.closest('.remove-line')) { state.cart = state.cart.filter(x => x !== line); saveCart(); }
 });
@@ -296,10 +308,11 @@ dom.checkoutForm.addEventListener('submit', async event => {
     if (response.checkoutUrl) { location.href = response.checkoutUrl; return; }
     state.cart = []; saveCart(); showOrderSuccess(response.orderId);
   } catch (err) { error.textContent = err.message; }
-  finally { button.disabled = false; button.innerHTML = `${tr('Rendelés leadása', 'Place order')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + (productById(line.productId)?.price || 0) * line.quantity, 0))}</span>`; }
+  finally { button.disabled = false; button.innerHTML = `${tr('Rendelés leadása', 'Place order')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0))}</span>`; }
 });
 
-$('#productDialog').addEventListener('click', event => { if (event.target === $('#productDialog') || event.target.closest('.dialog-close')) $('#productDialog').close(); if (event.target.closest('.modal-add')) { addToCart(event.target.closest('.modal-add').dataset.id); $('#productDialog').close(); openCart(); } });
+$('#productDialog').addEventListener('change', event => { if (event.target.matches('#productSizeSelect')) $('#selectedSizePrice').textContent = money(Number(event.target.selectedOptions[0].dataset.price)); });
+$('#productDialog').addEventListener('click', event => { if (event.target === $('#productDialog') || event.target.closest('.dialog-close')) $('#productDialog').close(); if (event.target.closest('.modal-add')) { addToCart(event.target.closest('.modal-add').dataset.id, $('#productSizeSelect').value); $('#productDialog').close(); openCart(); } });
 $('#infoDialog').addEventListener('click', event => { if (event.target === $('#infoDialog') || event.target.closest('.dialog-close')) $('#infoDialog').close(); });
 $$('[data-info]').forEach(button => button.addEventListener('click', () => showInfo(button.dataset.info)));
 $('.menu-button').addEventListener('click', event => { const nav = $('.main-nav'); nav.classList.toggle('open'); event.currentTarget.setAttribute('aria-expanded', nav.classList.contains('open')); });

@@ -8,7 +8,17 @@ const customStatusLabels = { new: 'Új', contacted: 'Kapcsolatfelvétel megtört
 const openingHourDays = [
   ['monday', 'Hétfő'], ['tuesday', 'Kedd'], ['wednesday', 'Szerda'], ['thursday', 'Csütörtök'], ['friday', 'Péntek'], ['saturday', 'Szombat'], ['sunday', 'Vasárnap']
 ];
-const state = { data: { categories: [], colors: [], products: [], orders: [], customOrders: [], openingHours: [] }, currentImages: [] };
+const state = { data: { categories: [], colors: [], products: [], orders: [], customOrders: [], openingHours: [] }, currentImages: [], currentSizes: [] };
+
+function productSizes(product) {
+  return Array.isArray(product.sizes) && product.sizes.length ? product.sizes : [{ id: 'default', name: 'Normál', price: Number(product.price) || 0 }];
+}
+
+function priceRange(product) {
+  const prices = productSizes(product).map(size => size.price);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  return min === max ? money(min) : `${money(min)} – ${money(max)}`;
+}
 
 async function request(url, options = {}) {
   const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -54,7 +64,7 @@ function filteredOrders() {
 }
 function renderOrders() {
   const orders = filteredOrders();
-  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td></tr>`).join('');
+  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td></tr>`).join('');
   $('#ordersEmpty').hidden = orders.length > 0;
 }
 
@@ -72,7 +82,7 @@ function renderCustomOrders() {
 function renderProducts() {
   const term = ($('#productSearch')?.value || '').toLocaleLowerCase('hu');
   const products = state.data.products.filter(p => !term || `${p.name} ${p.description} ${catName(p.categoryId)}`.toLocaleLowerCase('hu').includes(term));
-  $('#adminProducts').innerHTML = products.map(p => `<article class="admin-product ${p.active === false ? 'inactive' : ''}" data-id="${esc(p.id)}"><img src="${esc(p.images?.[0] || '/assets/hero-bouquet.png')}" alt=""><div class="admin-product-copy"><h3>${esc(p.name)}</h3><p>${esc(catName(p.categoryId))} · ${money(p.price)}${p.active === false ? ' · Rejtett' : ''}</p></div><div class="admin-product-actions"><button class="edit-product">Szerkesztés</button><button class="delete-product">Törlés</button></div></article>`).join('');
+  $('#adminProducts').innerHTML = products.map(p => `<article class="admin-product ${p.active === false ? 'inactive' : ''}" data-id="${esc(p.id)}"><img src="${esc(p.images?.[0] || '/assets/hero-bouquet.png')}" alt=""><div class="admin-product-copy"><h3>${esc(p.name)}</h3><p>${esc(catName(p.categoryId))} · ${priceRange(p)} · ${productSizes(p).length} méret${p.active === false ? ' · Rejtett' : ''}</p></div><div class="admin-product-actions"><button class="edit-product">Szerkesztés</button><button class="delete-product">Törlés</button></div></article>`).join('');
 }
 
 function renderEntities() {
@@ -173,14 +183,32 @@ document.addEventListener('click', async event => {
 
 function openProductEditor(product = null) {
   const form = $('#productForm'); form.reset(); setError(form); state.currentImages = product?.images ? [...product.images] : [];
+  state.currentSizes = product ? productSizes(product).map(size => ({ ...size })) : [{ id: '', name: 'Normál', price: '' }];
   $('#productFormTitle').textContent = product ? 'Termék szerkesztése' : 'Új termék'; $('[name=id]', form).value = product?.id || '';
-  $('[name=name]', form).value = product?.name || ''; $('[name=price]', form).value = product?.price || ''; $('[name=description]', form).value = product?.description || '';
+  $('[name=name]', form).value = product?.name || ''; $('[name=description]', form).value = product?.description || '';
   $('[name=categoryId]', form).innerHTML = `<option value="">Válassz…</option>${state.data.categories.map(c => `<option value="${esc(c.id)}" ${product?.categoryId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}`;
   $('#productColors').innerHTML = state.data.colors.map(c => `<label><input type="checkbox" value="${esc(c.id)}" ${product?.colorIds?.includes(c.id) ? 'checked' : ''}><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(c.hex)}"></i> ${esc(c.name)}</label>`).join('');
   $('[name=featured]', form).checked = Boolean(product?.featured); $('[name=active]', form).checked = product ? product.active !== false : true;
-  renderPreviews(); $('#productEditor').showModal();
+  renderSizeOptions(); renderPreviews(); $('#productEditor').showModal();
 }
 function renderPreviews() { $('#imagePreviews').innerHTML = state.currentImages.map((src, i) => `<div class="image-preview" data-index="${i}"><img src="${esc(src)}" alt=""><button type="button" aria-label="Kép eltávolítása">×</button></div>`).join(''); }
+
+function renderSizeOptions() {
+  $('#sizeOptions').innerHTML = state.currentSizes.map((size, index) => `<div class="size-option-row" data-index="${index}" data-id="${esc(size.id || '')}"><label>Méret neve<input class="size-name" value="${esc(size.name)}" placeholder="Például: Kicsi" required></label><label>Ár (Ft)<input class="size-price" type="number" min="0" step="100" value="${esc(size.price)}" required></label><button type="button" class="remove-size" aria-label="Méret eltávolítása" ${state.currentSizes.length === 1 ? 'disabled' : ''}>×</button></div>`).join('');
+}
+
+$('#addSizeOption').addEventListener('click', () => { state.currentSizes.push({ id: '', name: '', price: '' }); renderSizeOptions(); });
+$('#sizeOptions').addEventListener('input', event => {
+  const row = event.target.closest('.size-option-row'); if (!row) return;
+  const size = state.currentSizes[Number(row.dataset.index)];
+  if (event.target.matches('.size-name')) size.name = event.target.value;
+  if (event.target.matches('.size-price')) size.price = event.target.value;
+});
+$('#sizeOptions').addEventListener('click', event => {
+  const row = event.target.closest('.size-option-row');
+  if (!row || !event.target.closest('.remove-size') || state.currentSizes.length === 1) return;
+  state.currentSizes.splice(Number(row.dataset.index), 1); renderSizeOptions();
+});
 
 $('#addProduct').addEventListener('click', () => openProductEditor());
 $('#adminProducts').addEventListener('click', async event => {
@@ -202,7 +230,8 @@ $$('.dialog-close, .cancel-product').forEach(button => button.addEventListener('
 
 $('#productForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = data.get('id'), button = $('button[type=submit]', form); setError(form); button.disabled = true;
-  const payload = { name: data.get('name'), description: data.get('description'), price: Number(data.get('price')), categoryId: data.get('categoryId'), colorIds: $$('#productColors input:checked').map(x => x.value), images: state.currentImages, featured: $('[name=featured]', form).checked, active: $('[name=active]', form).checked };
+  const sizes = $$('.size-option-row').map(row => ({ id: row.dataset.id, name: $('.size-name', row).value, price: Number($('.size-price', row).value) }));
+  const payload = { name: data.get('name'), description: data.get('description'), sizes, categoryId: data.get('categoryId'), colorIds: $$('#productColors input:checked').map(x => x.value), images: state.currentImages, featured: $('[name=featured]', form).checked, active: $('[name=active]', form).checked };
   try { await request(`/api/admin/products${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); $('#productEditor').close(); await loadData(); toast('Termék mentve.'); }
   catch (error) { setError(form, error.message); }
   finally { button.disabled = false; }
