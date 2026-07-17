@@ -54,8 +54,7 @@ const state = {
   language: localStorage.getItem('va_language') === 'en' ? 'en' : 'hu',
   catalog: { products: [], categories: [], colors: [] },
   filters: { categories: new Set(), colors: new Set(), search: '', sort: 'featured' },
-  cart: JSON.parse(localStorage.getItem('va_cart') || '[]'),
-  favorites: new Set(JSON.parse(localStorage.getItem('va_favorites') || '[]'))
+  cart: JSON.parse(localStorage.getItem('va_cart') || '[]')
 };
 
 const dom = {
@@ -150,7 +149,6 @@ function renderProducts() {
   dom.grid.innerHTML = products.map((p, index) => `
     <article class="product-card" data-id="${escapeHtml(p.id)}">
       ${p.featured && index === 0 ? `<span class="badge">${tr('Kedvenc', 'Favourite')}</span>` : ''}
-      <button class="favorite" aria-label="${state.favorites.has(p.id) ? tr('Eltávolítás a kedvencekből', 'Remove from favourites') : tr('Hozzáadás a kedvencekhez', 'Add to favourites')}" aria-pressed="${state.favorites.has(p.id)}">${state.favorites.has(p.id) ? '♥' : '♡'}</button>
       <button class="product-image open-product" aria-label="${escapeHtml(localized(p.name))} ${tr('részletei', 'details')}"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}" loading="lazy"></button>
       <div class="product-card-body">
         <h3>${escapeHtml(localized(p.name))}</h3>
@@ -250,10 +248,7 @@ function showOrderSuccess(id) {
 dom.grid.addEventListener('click', event => {
   const card = event.target.closest('.product-card'); if (!card) return;
   if (event.target.closest('.quick-add')) addToCart(card.dataset.id);
-  else if (event.target.closest('.favorite')) {
-    const id = card.dataset.id; state.favorites.has(id) ? state.favorites.delete(id) : state.favorites.add(id);
-    localStorage.setItem('va_favorites', JSON.stringify([...state.favorites])); renderProducts();
-  } else if (event.target.closest('.open-product')) showProduct(card.dataset.id);
+  else if (event.target.closest('.open-product')) showProduct(card.dataset.id);
 });
 
 dom.categoryFilters.addEventListener('change', event => { event.target.checked ? state.filters.categories.add(event.target.value) : state.filters.categories.delete(event.target.value); renderProducts(); });
