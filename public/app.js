@@ -5,7 +5,7 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({ '&':
 
 const uiTranslations = new Map(Object.entries({
   'Szegedi átvétel': 'Pickup in Szeged', 'Kézzel készül': 'Handmade', 'Mindig friss virágok': 'Always fresh flowers',
-  'Csokrok': 'Bouquets', 'Virágboxok': 'Flower boxes', 'Alkalmak': 'Occasions', 'Esküvő': 'Weddings', 'Rólunk': 'About us', 'Kapcsolat': 'Contact',
+  'Csokrok': 'Bouquets', 'Egyedi csokor': 'Custom flowers', 'Virágboxok': 'Flower boxes', 'Alkalmak': 'Occasions', 'Esküvő': 'Weddings', 'Rólunk': 'About us', 'Kapcsolat': 'Contact',
   'Szegeden, szeretettel': 'Made with love in Szeged', 'Virágba csomagolt': 'Messages wrapped in', 'üzenetek.': 'flowers.',
   'Egyedi csokrok, friss virágokból, gondosan készítve minden alkalomra.': 'Unique bouquets, carefully made from fresh flowers for every occasion.',
   'Csokrok megtekintése': 'View bouquets', 'Egyedi rendelés': 'Custom order', 'Milyen alkalomra?': 'What is the occasion?',
@@ -223,7 +223,8 @@ function showToast(message) {
 
 function showInfo(type) {
   $('#infoDialog').dataset.type = type;
-  $('#infoDialogContent').innerHTML = type === 'aszf' ? termsContent() : privacyContent();
+  const customRequestPrivacy = state.language === 'en' ? '<p><strong>Custom requests:</strong> the description and any optional reference images are processed to assess, discuss and fulfil the requested arrangement. Requests that do not become orders are retained for up to one year; fulfilled requests follow the order retention period.</p>' : '<p><strong>Egyedi igények:</strong> a leírást és az opcionálisan csatolt referenciafotókat az elképzelés felméréséhez, egyeztetéséhez és teljesítéséhez kezeljük. A megrendeléssé nem váló igényeket legfeljebb 1 évig, a teljesített igényeket a rendelésekre vonatkozó megőrzési idő szerint őrizzük.</p>';
+  $('#infoDialogContent').innerHTML = type === 'aszf' ? termsContent() : privacyContent().replace('<h3>3.', `${customRequestPrivacy}<h3>3.`);
   if (!$('#infoDialog').open) $('#infoDialog').showModal();
   $('#infoDialog').scrollTop = 0;
 }

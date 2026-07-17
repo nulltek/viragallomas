@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 const ROOT = __dirname;
 const PUBLIC = path.join(ROOT, 'public');
-const DATA_FILE = path.join(ROOT, 'data', 'store.json');
+const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(ROOT, 'data', 'store.json');
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
@@ -53,8 +53,18 @@ function seedStore() {
       { id: 'barackos-ragyogas', name: 'Barackos ragyogás', description: 'Gazdag rózsacsokor barack, korall és krém tónusokban.', price: 17900, categoryId: 'rozsak', colorIds: ['barack', 'feher'], images: ['/assets/barackos-ragyogas.png'], featured: true, active: true },
       { id: 'feher-harmonia', name: 'Fehér harmónia', description: 'Elegáns liliom, rózsa és rezgő kompozíció friss zöldekkel.', price: 19900, categoryId: 'csokrok', colorIds: ['feher'], images: ['/assets/feher-harmonia.png'], featured: true, active: true }
     ],
-    orders: []
+    orders: [],
+    customOrders: []
   };
+}
+
+function normalizeStore(data) {
+  data.categories = Array.isArray(data.categories) ? data.categories : [];
+  data.colors = Array.isArray(data.colors) ? data.colors : [];
+  data.products = Array.isArray(data.products) ? data.products : [];
+  data.orders = Array.isArray(data.orders) ? data.orders : [];
+  data.customOrders = Array.isArray(data.customOrders) ? data.customOrders : [];
+  return data;
 }
 
 async function ensureDatabase() {
@@ -77,14 +87,14 @@ async function loadStore() {
   if (dbPool) {
     await ensureDatabase();
     const result = await dbPool.query('SELECT data FROM app_state WHERE id = 1');
-    return result.rows[0].data;
+    return normalizeStore(result.rows[0].data);
   }
   if (!fs.existsSync(DATA_FILE)) {
     const data = seedStore();
     await saveStore(data);
-    return data;
+    return normalizeStore(data);
   }
-  return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+  return normalizeStore(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')));
 }
 
 async function saveStore(data) {
@@ -204,7 +214,7 @@ async function api(req, res, url) {
   const store = await loadStore();
 
   if (pathname === '/api/catalog' && method === 'GET') return json(res, 200, publicCatalog(store));
-  if (pathname === '/api/health' && method === 'GET') return json(res, 200, { ok: true, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY) });
+  if (pathname === '/api/health' && method === 'GET') return json(res, 200, { ok: true, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), databaseConfigured: Boolean(dbPool) });
 
   if (pathname === '/api/stripe/webhook' && method === 'POST') {
     const raw = await readBody(req);
@@ -266,6 +276,16 @@ async function api(req, res, url) {
     return json(res, 201, { orderId: order.id });
   }
 
+  if (pathname === '/api/custom-orders' && method === 'POST') {
+    const name = cleanText(body.name, 100), email = cleanText(body.email, 180), phone = cleanText(body.phone, 40), description = cleanText(body.description, 4000);
+    if (!name || !/^\S+@\S+\.\S+$/.test(email) || phone.length < 6 || !description) return json(res, 400, { error: 'Kérjük, tölts ki minden kötelező mezőt.' });
+    const images = Array.isArray(body.images) ? body.images.filter(image => typeof image === 'string' && /^data:image\/(jpeg|png|webp);base64,/i.test(image) && image.length <= 6 * 1024 * 1024).slice(0, 5) : [];
+    const customOrder = { id: uid('EGR-').toUpperCase(), createdAt: now(), updatedAt: now(), status: 'new', customer: { name, email, phone }, description, images };
+    store.customOrders.unshift(customOrder);
+    await saveStore(store);
+    return json(res, 201, { customOrderId: customOrder.id });
+  }
+
   if (pathname === '/api/admin/login' && method === 'POST') {
     const candidate = hashPassword(String(body.password || ''), store.admin.salt).hash;
     if (!safeEqual(candidate, store.admin.hash)) return json(res, 401, { error: 'Hibás jelszó.' });
@@ -279,7 +299,7 @@ async function api(req, res, url) {
   if (pathname === '/api/admin/me' && method === 'GET') return json(res, getSession(req) ? 200 : 401, { authenticated: Boolean(getSession(req)) });
 
   if (pathname.startsWith('/api/admin/') && !requireAdmin(req, res)) return;
-  if (pathname === '/api/admin/data' && method === 'GET') return json(res, 200, { categories: store.categories, colors: store.colors, products: store.products, orders: store.orders, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY) });
+  if (pathname === '/api/admin/data' && method === 'GET') return json(res, 200, { categories: store.categories, colors: store.colors, products: store.products, orders: store.orders, customOrders: store.customOrders, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), databaseConfigured: Boolean(dbPool) });
   if (pathname === '/api/admin/password' && method === 'PUT') {
     const current = hashPassword(String(body.currentPassword || ''), store.admin.salt).hash;
     if (!safeEqual(current, store.admin.hash)) return json(res, 400, { error: 'A jelenlegi jelszó nem megfelelő.' });
@@ -319,6 +339,16 @@ async function api(req, res, url) {
     if (!allowed.includes(body.status)) return json(res, 400, { error: 'Érvénytelen állapot.' });
     order.status = body.status; order.updatedAt = now(); await saveStore(store); return json(res, 200, order);
   }
+
+  const customOrderMatch = pathname.match(/^\/api\/admin\/custom-orders\/([^/]+)$/);
+  if (customOrderMatch && method === 'PUT') {
+    const customOrder = store.customOrders.find(order => order.id === decodeURIComponent(customOrderMatch[1]));
+    if (!customOrder) return json(res, 404, { error: 'Az egyedi rendelés nem található.' });
+    const allowed = ['new', 'contacted', 'accepted', 'completed', 'declined'];
+    if (!allowed.includes(body.status)) return json(res, 400, { error: 'Érvénytelen állapot.' });
+    customOrder.status = body.status; customOrder.updatedAt = now(); await saveStore(store);
+    return json(res, 200, customOrder);
+  }
   return json(res, 404, { error: 'Nincs ilyen végpont.' });
 }
 
@@ -342,7 +372,7 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, PUBLIC_URL);
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
-    let relative = url.pathname === '/admin' || url.pathname === '/admin/' ? 'admin.html' : url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
+    let relative = url.pathname === '/admin' || url.pathname === '/admin/' ? 'admin.html' : ['/egyedi-rendeles', '/egyedi-rendeles/', '/custom-order', '/custom-order/'].includes(url.pathname) ? 'custom-order.html' : url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
     const file = path.resolve(PUBLIC, relative);
     if (!file.startsWith(path.resolve(PUBLIC)) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
       res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Az oldal nem található.');

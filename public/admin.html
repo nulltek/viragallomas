@@ -24,6 +24,7 @@
       <nav>
         <button class="active" data-tab="overview"><i>⌂</i> Áttekintés</button>
         <button data-tab="orders"><i>▤</i> Rendelések <b id="newOrderCount"></b></button>
+        <button data-tab="customOrders"><i>✿</i> Egyedi rendelések <b id="newCustomOrderCount"></b></button>
         <button data-tab="products"><i>❀</i> Termékek</button>
         <button data-tab="categories"><i>☷</i> Kategóriák</button>
         <button data-tab="colors"><i>◉</i> Színek</button>
@@ -43,6 +44,11 @@
       <section class="tab" data-panel="orders">
         <div class="panel toolbar"><label class="search"><span>⌕</span><input id="orderSearch" placeholder="Keresés név, e-mail vagy azonosító alapján…"></label><select id="orderStatusFilter"><option value="">Minden állapot</option><option value="new">Új</option><option value="awaiting_payment">Fizetésre vár</option><option value="paid">Fizetve</option><option value="preparing">Készül</option><option value="ready">Átvehető</option><option value="completed">Teljesítve</option><option value="cancelled">Törölve</option></select></div>
         <div class="panel table-wrap"><table><thead><tr><th>Rendelés</th><th>Vásárló</th><th>Tartalom</th><th>Fizetés</th><th>Összeg</th><th>Állapot</th></tr></thead><tbody id="ordersTable"></tbody></table><div class="table-empty" id="ordersEmpty" hidden>Nincs a szűrésnek megfelelő rendelés.</div></div>
+      </section>
+
+      <section class="tab" data-panel="customOrders">
+        <div class="panel toolbar"><label class="search"><span>⌕</span><input id="customOrderSearch" placeholder="Keresés név, e-mail, telefonszám vagy azonosító alapján…"></label><select id="customOrderStatusFilter"><option value="">Minden állapot</option><option value="new">Új</option><option value="contacted">Kapcsolatfelvétel megtörtént</option><option value="accepted">Elfogadva</option><option value="completed">Teljesítve</option><option value="declined">Elutasítva</option></select></div>
+        <div class="panel table-wrap"><table class="custom-orders-table"><thead><tr><th>Igény</th><th>Ügyfél</th><th>Leírás</th><th>Referenciafotók</th><th>Állapot</th></tr></thead><tbody id="customOrdersTable"></tbody></table><div class="table-empty" id="customOrdersEmpty" hidden>Nincs a szűrésnek megfelelő egyedi rendelés.</div></div>
       </section>
 
       <section class="tab" data-panel="products">

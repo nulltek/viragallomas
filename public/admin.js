@@ -4,7 +4,8 @@ const esc = v => String(v ?? '').replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': 
 const money = v => new Intl.NumberFormat('hu-HU', { style: 'currency', currency: 'HUF', maximumFractionDigits: 0 }).format(v);
 const dateTime = v => new Intl.DateTimeFormat('hu-HU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(v));
 const statusLabels = { new: 'Új', awaiting_payment: 'Fizetésre vár', paid: 'Fizetve', preparing: 'Készül', ready: 'Átvehető', completed: 'Teljesítve', cancelled: 'Törölve', payment_error: 'Fizetési hiba' };
-const state = { data: { categories: [], colors: [], products: [], orders: [] }, currentImages: [] };
+const customStatusLabels = { new: 'Új', contacted: 'Kapcsolatfelvétel megtörtént', accepted: 'Elfogadva', completed: 'Teljesítve', declined: 'Elutasítva' };
+const state = { data: { categories: [], colors: [], products: [], orders: [], customOrders: [] }, currentImages: [] };
 
 async function request(url, options = {}) {
   const response = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -21,15 +22,17 @@ async function start() {
 function showApp() { $('#loginPage').hidden = true; $('#adminApp').hidden = false; }
 async function loadData() {
   state.data = await request('/api/admin/data');
+  state.data.customOrders = Array.isArray(state.data.customOrders) ? state.data.customOrders : [];
   renderAll();
 }
 function catName(id) { return state.data.categories.find(x => x.id === id)?.name || '—'; }
 
 function renderAll() {
-  renderOverview(); renderOrders(); renderProducts(); renderEntities();
+  renderOverview(); renderOrders(); renderCustomOrders(); renderProducts(); renderEntities();
   $('#stripeChip').className = `stripe-chip ${state.data.stripeConfigured ? 'ok' : 'warn'}`;
   $('#stripeChip').textContent = state.data.stripeConfigured ? '● Stripe csatlakoztatva' : '○ Stripe beállításra vár';
   $('#newOrderCount').textContent = state.data.orders.filter(o => ['new', 'paid'].includes(o.status)).length || '';
+  $('#newCustomOrderCount').textContent = state.data.customOrders.filter(order => order.status === 'new').length || '';
 }
 
 function renderOverview() {
@@ -51,6 +54,17 @@ function renderOrders() {
   $('#ordersEmpty').hidden = orders.length > 0;
 }
 
+function filteredCustomOrders() {
+  const term = ($('#customOrderSearch')?.value || '').toLocaleLowerCase('hu'), status = $('#customOrderStatusFilter')?.value || '';
+  return state.data.customOrders.filter(order => (!status || order.status === status) && (!term || `${order.id} ${order.customer.name} ${order.customer.email} ${order.customer.phone} ${order.description}`.toLocaleLowerCase('hu').includes(term)));
+}
+
+function renderCustomOrders() {
+  const orders = filteredCustomOrders();
+  $('#customOrdersTable').innerHTML = orders.map(order => `<tr data-id="${esc(order.id)}"><td><strong>${esc(order.id)}</strong><small>${dateTime(order.createdAt)}</small></td><td><strong>${esc(order.customer.name)}</strong><small><a href="mailto:${esc(order.customer.email)}">${esc(order.customer.email)}</a><br><a href="tel:${esc(order.customer.phone)}">${esc(order.customer.phone)}</a></small></td><td><p class="custom-description">${esc(order.description)}</p></td><td><div class="custom-reference-grid">${order.images?.length ? order.images.map((image, index) => `<a href="${esc(image)}" target="_blank" rel="noopener" title="Referenciafotó ${index + 1}"><img src="${esc(image)}" alt="Referenciafotó ${index + 1}"></a>`).join('') : '<small>Nincs csatolt kép</small>'}</div></td><td><select class="custom-order-status">${Object.entries(customStatusLabels).map(([value, label]) => `<option value="${value}" ${order.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td></tr>`).join('');
+  $('#customOrdersEmpty').hidden = orders.length > 0;
+}
+
 function renderProducts() {
   const term = ($('#productSearch')?.value || '').toLocaleLowerCase('hu');
   const products = state.data.products.filter(p => !term || `${p.name} ${p.description} ${catName(p.categoryId)}`.toLocaleLowerCase('hu').includes(term));
@@ -65,7 +79,7 @@ function renderEntities() {
 function switchTab(name) {
   $$('.sidebar nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
   $$('.tab').forEach(p => p.classList.toggle('active', p.dataset.panel === name));
-  const names = { overview: ['Ma a virágpultnál', 'Áttekintés'], orders: ['Beérkezett igények', 'Rendelések'], products: ['Webshop kínálat', 'Termékek'], categories: ['Katalógus rendszerezése', 'Kategóriák'], colors: ['Keresési szűrők', 'Színvilágok'], security: ['Admin hozzáférés', 'Biztonság'] };
+  const names = { overview: ['Ma a virágpultnál', 'Áttekintés'], orders: ['Beérkezett igények', 'Rendelések'], customOrders: ['Személyre szabott virágok', 'Egyedi rendelések'], products: ['Webshop kínálat', 'Termékek'], categories: ['Katalógus rendszerezése', 'Kategóriák'], colors: ['Keresési szűrők', 'Színvilágok'], security: ['Admin hozzáférés', 'Biztonság'] };
   $('#pageEyebrow').textContent = names[name][0]; $('#pageTitle').textContent = names[name][1];
   $('.sidebar').classList.remove('open');
 }
@@ -85,11 +99,18 @@ $$('.sidebar nav button').forEach(button => button.addEventListener('click', () 
 $$('[data-go]').forEach(button => button.addEventListener('click', () => switchTab(button.dataset.go)));
 $('.admin-menu').addEventListener('click', () => $('.sidebar').classList.toggle('open'));
 $('#orderSearch').addEventListener('input', renderOrders); $('#orderStatusFilter').addEventListener('change', renderOrders);
+$('#customOrderSearch').addEventListener('input', renderCustomOrders); $('#customOrderStatusFilter').addEventListener('change', renderCustomOrders);
 $('#productSearch').addEventListener('input', renderProducts);
 
 $('#ordersTable').addEventListener('change', async event => {
   if (!event.target.matches('.order-status')) return; const row = event.target.closest('tr');
   try { await request(`/api/admin/orders/${encodeURIComponent(row.dataset.id)}`, { method: 'PUT', body: JSON.stringify({ status: event.target.value }) }); await loadData(); toast('Rendelési állapot frissítve.'); }
+  catch (error) { toast(error.message); }
+});
+
+$('#customOrdersTable').addEventListener('change', async event => {
+  if (!event.target.matches('.custom-order-status')) return; const row = event.target.closest('tr');
+  try { await request(`/api/admin/custom-orders/${encodeURIComponent(row.dataset.id)}`, { method: 'PUT', body: JSON.stringify({ status: event.target.value }) }); await loadData(); toast('Egyedi rendelés állapota frissítve.'); }
   catch (error) { toast(error.message); }
 });
 

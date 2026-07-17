@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Kérj egyedi, személyre szabott virágcsokrot a Virág Állomás Szegedtől.">
+  <title>Egyedi virágrendelés — Virág Állomás Szeged</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="announcement" aria-label="Üzleti információk">
+    <span>⌁ <b data-i18n="pickup">Szegedi átvétel</b></span><i></i><span>♙ <b data-i18n="handmade">Kézzel készül</b></span><i></i><span>♧ <b data-i18n="fresh">Mindig friss virágok</b></span>
+  </div>
+  <header class="site-header custom-header">
+    <a class="brand" href="/" aria-label="Virág Állomás Szeged kezdőlap"><span>VIRÁG ÁLLOMÁS</span> <em>SZEGED</em></a>
+    <nav class="main-nav" aria-label="Fő navigáció"><a href="/" data-i18n="shop">Webshop</a><a href="/#rolunk" data-i18n="about">Rólunk</a><a href="/#kapcsolat" data-i18n="contact">Kapcsolat</a></nav>
+    <div class="header-tools"><button class="language-toggle" id="customLanguageToggle" type="button">EN</button><a class="button nav-cta" href="/" data-i18n="backShop">Vissza a webshophoz</a></div>
+  </header>
+
+  <main class="custom-order-page">
+    <section class="custom-order-intro">
+      <p class="eyebrow" data-i18n="eyebrow">Egyedi elképzelésed van?</p>
+      <h1 data-i18n="title">Megálmodjuk veled,<br>virágba kötjük neked.</h1>
+      <p data-i18n="intro">Írd le, milyen csokrot vagy virágkompozíciót szeretnél. A részletek és az ár egyeztetéséhez telefonon vagy e-mailben keresünk meg.</p>
+      <div class="custom-order-promise"><span>01</span><p><b data-i18n="step1Title">Meséld el az elképzelésed</b><small data-i18n="step1Text">Színek, alkalom, hangulat vagy különleges virágok.</small></p></div>
+      <div class="custom-order-promise"><span>02</span><p><b data-i18n="step2Title">Küldj inspirációt</b><small data-i18n="step2Text">Legfeljebb 5 referenciafotót is csatolhatsz.</small></p></div>
+      <div class="custom-order-promise"><span>03</span><p><b data-i18n="step3Title">Egyeztetünk veled</b><small data-i18n="step3Text">Visszajelzünk a lehetőségekről, árról és átvételről.</small></p></div>
+    </section>
+
+    <section class="custom-form-card">
+      <form id="customOrderForm">
+        <p class="eyebrow" data-i18n="formEyebrow">Egyedi rendelés</p>
+        <h2 data-i18n="formTitle">Kérj személyre szabott virágot</h2>
+        <div class="custom-form-grid">
+          <label><span data-i18n="name">Név</span><input name="name" autocomplete="name" required maxlength="100"></label>
+          <label><span data-i18n="phone">Telefonszám</span><input name="phone" type="tel" autocomplete="tel" required maxlength="40"></label>
+          <label class="wide"><span data-i18n="email">E-mail-cím</span><input name="email" type="email" autocomplete="email" required maxlength="180"></label>
+          <label class="wide"><span data-i18n="description">Leírás</span><textarea name="description" rows="7" required maxlength="4000" data-placeholder-hu="Írd le az alkalmat, a kívánt színeket, méretet, virágokat és minden fontos részletet…" data-placeholder-en="Describe the occasion, preferred colours, size, flowers and any important details…"></textarea></label>
+          <label class="reference-upload wide" for="customImages"><span data-i18n="images">Referenciafotók</span> <small data-i18n="optional">(opcionális)</small><input id="customImages" type="file" accept="image/jpeg,image/png,image/webp" multiple><span class="upload-box"><b data-i18n="chooseImages">Képek kiválasztása</b><small data-i18n="imageHelp">JPG, PNG vagy WebP · legfeljebb 5 kép · maximum 4 MB/kép</small></span></label>
+          <div class="custom-image-previews wide" id="customImagePreviews"></div>
+        </div>
+        <p class="form-error" id="customOrderError" role="alert"></p>
+        <button class="button button-primary full" type="submit" data-i18n="submit">Egyedi igény elküldése</button>
+        <p class="custom-privacy"><span data-i18n="privacy">Az adatokat kizárólag az igény egyeztetéséhez és teljesítéséhez használjuk.</span> <a href="/#kapcsolat" data-i18n="privacyLink">Adatkezelési tájékoztató</a></p>
+      </form>
+      <div class="custom-order-success" id="customOrderSuccess" role="status" aria-live="polite" tabindex="-1" hidden><span>✓</span><h2 data-i18n="successTitle">Megkaptuk az egyedi rendelésed!</h2><p data-i18n="successText">Köszönjük! Hamarosan felvesszük veled a kapcsolatot az egyeztetéshez.</p><p data-i18n="requestId">Igényazonosítód:</p><strong id="customOrderNumber"></strong><a class="button button-primary" href="/" data-i18n="returnShop">Vissza a webshophoz</a></div>
+    </section>
+  </main>
+
+  <footer><div class="footer-bottom shell"><span>© <span id="customYear"></span> Virág Állomás Szeged</span><span>+36 20 262 1726 · viola32ildiko@gmail.com</span></div></footer>
+  <div class="toast" id="customToast" role="status" aria-live="polite"></div>
+  <script src="/custom-order.js" defer></script>
+</body>
+</html>
