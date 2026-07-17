@@ -1,0 +1,62 @@
+# Virág Állomás Szeged
+
+Reszponzív, önálló webshop és admin felület. Külső JavaScript-csomag nélkül fut; a katalógust és a rendeléseket a `data/store.json` fájlban tárolja.
+
+## Indítás
+
+1. Telepíts Node.js 18 vagy újabb verziót.
+2. Másold át a `.env.example` tartalmát a futtatási környezetedbe, vagy állítsd be a változókat a tárhelyeden.
+3. Indítsd el:
+
+```bash
+npm start
+```
+
+- Webshop: `http://localhost:3000`
+- Admin: `http://localhost:3000/admin`
+- Kezdeti admin jelszó: `Admin123!`
+
+Az első belépés után az admin felületen azonnal változtasd meg a jelszót. Éles környezetben állíts be hosszú, véletlenszerű `SESSION_SECRET` értéket és egyedi `ADMIN_INITIAL_PASSWORD` értéket még az első indítás előtt.
+
+## Stripe beállítása
+
+Állítsd be ezeket a környezeti változókat:
+
+```text
+PUBLIC_URL=https://a-sajat-domain.hu
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+SESSION_SECRET=legalabb-32-karakteres-veletlen-ertek
+```
+
+A Stripe Dashboardban hozd létre a webhookot erre a címre:
+
+```text
+https://a-sajat-domain.hu/api/stripe/webhook
+```
+
+Figyelt esemény: `checkout.session.completed`.
+
+Stripe kulcs nélkül a webshop készpénzes, személyes átvételes rendelési módja teljesen működik; a bankkártyás lehetőség érthető figyelmeztetést ad.
+
+## Funkciók
+
+- reszponzív webshop, termékkeresés, kategória- és színszűrés, rendezés
+- kedvencek, termékrészletek, tartós kosár
+- személyes átvételes pénztár névvel, e-maillel és telefonszámmal
+- készpénzes vagy Stripe bankkártyás fizetés
+- védett admin felület, jelszócsere
+- termékek, kategóriák és színek létrehozása, szerkesztése és törlése
+- termékenként legfeljebb 6 feltöltött kép
+- rendelések listázása, keresése, szűrése és állapotkezelése
+
+## Élesítés előtt
+
+- Töltsd ki a valódi üzletcímet, telefonszámot, e-mailt és nyitvatartást a `public/index.html` fájlban.
+- Cseréld le a fejlesztési ÁSZF- és adatkezelési mintaszöveget jogilag ellenőrzött dokumentumokra.
+- Állíts be HTTPS-t és rendszeres biztonsági mentést a `data/store.json` fájlra.
+- Nagyobb forgalomnál érdemes a JSON-tárolót PostgreSQL vagy más felügyelt adatbázisra cserélni, a képeket pedig objektumtárhelyre feltölteni.
+
+## Képi világ
+
+A projekt öt, beépített `image_gen` módban készített, jogtiszta fejlesztési képet használ: egy széles hero-fotót és négy termékfotót. A promptok prémium, természetes virágfotókat kértek a referencia peach/ivory/sage hangulatában, szöveg, logó, vízjel és emberek nélkül.

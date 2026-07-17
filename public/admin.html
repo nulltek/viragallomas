@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin — Virág Állomás Szeged</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <main class="login-page" id="loginPage">
+    <section class="login-panel">
+      <a class="brand" href="/"><span>VIRÁG ÁLLOMÁS</span> <em>SZEGED</em></a>
+      <div class="login-copy"><p class="eyebrow">Védett felület</p><h1>Üdv újra a virágpultnál.</h1><p>Jelentkezz be a termékek, kategóriák és rendelések kezeléséhez.</p></div>
+      <form id="loginForm"><label>Admin jelszó<input type="password" name="password" autocomplete="current-password" required autofocus></label><button class="button" type="submit">Belépés</button><p class="form-error"></p></form>
+      <a class="back-link" href="/">← Vissza a webshophoz</a>
+    </section>
+    <div class="login-image"></div>
+  </main>
+
+  <main class="admin-app" id="adminApp" hidden>
+    <aside class="sidebar">
+      <a class="brand" href="/"><span>VIRÁG ÁLLOMÁS</span><em> admin</em></a>
+      <nav>
+        <button class="active" data-tab="overview"><i>⌂</i> Áttekintés</button>
+        <button data-tab="orders"><i>▤</i> Rendelések <b id="newOrderCount"></b></button>
+        <button data-tab="products"><i>❀</i> Termékek</button>
+        <button data-tab="categories"><i>☷</i> Kategóriák</button>
+        <button data-tab="colors"><i>◉</i> Színek</button>
+        <button data-tab="security"><i>⌾</i> Biztonság</button>
+      </nav>
+      <div class="sidebar-bottom"><a href="/" target="_blank">Webshop megnyitása ↗</a><button id="logoutButton">Kijelentkezés</button></div>
+    </aside>
+    <button class="admin-menu" aria-label="Admin menü">☰</button>
+    <section class="admin-main">
+      <header><div><p class="eyebrow" id="pageEyebrow">Ma a virágpultnál</p><h1 id="pageTitle">Áttekintés</h1></div><div class="stripe-chip" id="stripeChip"></div></header>
+
+      <section class="tab active" data-panel="overview">
+        <div class="stats" id="stats"></div>
+        <div class="dashboard-grid"><div class="panel"><div class="panel-heading"><h2>Legutóbbi rendelések</h2><button data-go="orders">Mindet látom →</button></div><div id="recentOrders"></div></div><div class="panel"><div class="panel-heading"><h2>Katalógus</h2></div><div id="catalogSummary"></div></div></div>
+      </section>
+
+      <section class="tab" data-panel="orders">
+        <div class="panel toolbar"><label class="search"><span>⌕</span><input id="orderSearch" placeholder="Keresés név, e-mail vagy azonosító alapján…"></label><select id="orderStatusFilter"><option value="">Minden állapot</option><option value="new">Új</option><option value="awaiting_payment">Fizetésre vár</option><option value="paid">Fizetve</option><option value="preparing">Készül</option><option value="ready">Átvehető</option><option value="completed">Teljesítve</option><option value="cancelled">Törölve</option></select></div>
+        <div class="panel table-wrap"><table><thead><tr><th>Rendelés</th><th>Vásárló</th><th>Tartalom</th><th>Fizetés</th><th>Összeg</th><th>Állapot</th></tr></thead><tbody id="ordersTable"></tbody></table><div class="table-empty" id="ordersEmpty" hidden>Nincs a szűrésnek megfelelő rendelés.</div></div>
+      </section>
+
+      <section class="tab" data-panel="products">
+        <div class="panel toolbar"><label class="search"><span>⌕</span><input id="productSearch" placeholder="Termék keresése…"></label><button class="button compact" id="addProduct">+ Új termék</button></div>
+        <div class="product-admin-grid" id="adminProducts"></div>
+      </section>
+
+      <section class="tab" data-panel="categories">
+        <div class="split-panel"><div class="panel"><h2>Kategóriák</h2><p class="muted">A kategóriák a webshop szűrőiben jelennek meg.</p><div class="simple-list" id="categoryList"></div></div><form class="panel entity-form" id="categoryForm"><h2 id="categoryFormTitle">Új kategória</h2><input type="hidden" name="id"><label>Megnevezés<input name="name" required placeholder="Például: Csokrok"></label><div class="form-actions"><button class="cancel-edit" type="button">Mégse</button><button class="button compact" type="submit">Mentés</button></div><p class="form-error"></p></form></div>
+      </section>
+
+      <section class="tab" data-panel="colors">
+        <div class="split-panel"><div class="panel"><h2>Színek</h2><p class="muted">A vásárlók ezek alapján is szűrhetik a csokrokat.</p><div class="simple-list" id="colorList"></div></div><form class="panel entity-form" id="colorForm"><h2 id="colorFormTitle">Új szín</h2><input type="hidden" name="id"><label>Megnevezés<input name="name" required placeholder="Például: Púder"></label><label>Színminta<input name="hex" type="color" value="#e7b6ab"></label><div class="form-actions"><button class="cancel-edit" type="button">Mégse</button><button class="button compact" type="submit">Mentés</button></div><p class="form-error"></p></form></div>
+      </section>
+
+      <section class="tab" data-panel="security">
+        <form class="panel password-form" id="passwordForm"><p class="eyebrow">Admin hozzáférés</p><h2>Jelszó módosítása</h2><p class="muted">Használj legalább 10 karakterből álló, egyedi jelszót.</p><label>Jelenlegi jelszó<input type="password" name="currentPassword" autocomplete="current-password" required></label><label>Új jelszó<input type="password" name="newPassword" autocomplete="new-password" minlength="10" required></label><label>Új jelszó még egyszer<input type="password" name="confirmPassword" autocomplete="new-password" minlength="10" required></label><button class="button" type="submit">Jelszó mentése</button><p class="form-error"></p><p class="form-success"></p></form>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="productEditor"><button class="dialog-close" aria-label="Bezárás">×</button><form id="productForm"><div class="dialog-heading"><p class="eyebrow">Katalógus</p><h2 id="productFormTitle">Új termék</h2></div><input type="hidden" name="id"><div class="form-grid"><label>Név<input name="name" required></label><label>Ár (Ft)<input name="price" type="number" min="0" step="100" required></label><label class="wide">Leírás<textarea name="description" rows="4" required></textarea></label><label>Kategória<select name="categoryId" required></select></label><fieldset><legend>Színek</legend><div class="color-checks" id="productColors"></div></fieldset><label class="wide">Képek <small>legfeljebb 6 kép, JPG/PNG/WebP</small><input id="imageInput" type="file" accept="image/jpeg,image/png,image/webp" multiple><span class="upload-hint">Húzd ide vagy válaszd ki a képeket</span></label><div class="image-previews wide" id="imagePreviews"></div><label class="toggle"><input name="featured" type="checkbox"><span></span>Kiemelt termék</label><label class="toggle"><input name="active" type="checkbox" checked><span></span>Megjelenik a webshopban</label></div><div class="dialog-actions"><button type="button" class="cancel-product">Mégse</button><button class="button" type="submit">Termék mentése</button></div><p class="form-error"></p></form></dialog>
+  <div class="toast" id="adminToast"></div>
+  <script src="/admin.js" defer></script>
+</body>
+</html>
