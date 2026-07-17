@@ -108,6 +108,9 @@ function normalizeStore(data) {
     })) : [];
     product.sizes = sizes.length ? sizes : [{ id: 'default', name: 'Normál', price: fallbackPrice }];
     product.price = Math.min(...product.sizes.map(size => size.price));
+    const legacyCategoryIds = Array.isArray(product.categoryIds) ? product.categoryIds : [product.categoryId];
+    product.categoryIds = [...new Set(legacyCategoryIds.filter(categoryId => data.categories.some(category => category.id === categoryId)))];
+    product.categoryId = product.categoryIds[0] || '';
     product.seasonal = Boolean(product.seasonal);
     return product;
   }) : [];
@@ -431,7 +434,7 @@ async function api(req, res, url) {
       store[key][index] = record; await saveStore(store); return json(res, 200, record);
     }
     if (method === 'DELETE') {
-      if (key === 'categories' && store.products.some(p => p.categoryId === id)) return json(res, 409, { error: 'A kategóriához termék tartozik. Előbb módosítsd a terméket.' });
+      if (key === 'categories' && store.products.some(p => (p.categoryIds || [p.categoryId]).includes(id))) return json(res, 409, { error: 'A kategóriához termék tartozik. Előbb módosítsd a terméket.' });
       if (key === 'colors' && store.products.some(p => p.colorIds.includes(id))) return json(res, 409, { error: 'A színhez termék tartozik. Előbb módosítsd a terméket.' });
       store[key].splice(index, 1); await saveStore(store); return json(res, 200, { ok: true });
     }
@@ -476,11 +479,13 @@ function buildRecord(key, body, store, id) {
   if (sizes.some(size => !size.name || !Number.isFinite(size.price) || size.price < 0)) return { error: 'Minden mérethez adj meg nevet és érvényes árat.' };
   if (new Set(sizes.map(size => size.name.toLocaleLowerCase('hu'))).size !== sizes.length) return { error: 'A méretnevek legyenek egyediek.' };
   const price = Math.min(...sizes.map(size => size.price));
-  if (!store.categories.some(x => x.id === body.categoryId)) return { error: 'Válassz kategóriát.' };
+  const suppliedCategoryIds = Array.isArray(body.categoryIds) ? body.categoryIds : [body.categoryId];
+  const categoryIds = [...new Set(suppliedCategoryIds.filter(categoryId => store.categories.some(category => category.id === categoryId)))];
+  if (!categoryIds.length) return { error: 'Válassz legalább egy kategóriát.' };
   const colorIds = Array.isArray(body.colorIds) ? body.colorIds.filter(cid => store.colors.some(x => x.id === cid)) : [];
   if (!colorIds.length) return { error: 'Válassz legalább egy rendelhető színt.' };
   const images = Array.isArray(body.images) ? body.images.filter(x => typeof x === 'string' && (x.startsWith('data:image/') || x.startsWith('/assets/'))).slice(0, 6) : [];
-  return { id, name, description: cleanText(body.description, 1200), price, sizes, categoryId: body.categoryId, colorIds, images, seasonal: Boolean(body.seasonal), featured: Boolean(body.featured), active: body.active !== false };
+  return { id, name, description: cleanText(body.description, 1200), price, sizes, categoryId: categoryIds[0], categoryIds, colorIds, images, seasonal: Boolean(body.seasonal), featured: Boolean(body.featured), active: body.active !== false };
 }
 
 const server = http.createServer(async (req, res) => {

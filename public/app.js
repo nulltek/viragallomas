@@ -120,6 +120,8 @@ async function request(url, options = {}) {
 }
 
 function categoryName(id) { return localized(state.catalog.categories.find(x => x.id === id)?.name || ''); }
+function productCategoryIds(product) { return Array.isArray(product?.categoryIds) && product.categoryIds.length ? product.categoryIds : product?.categoryId ? [product.categoryId] : []; }
+function productCategoryNames(product) { return productCategoryIds(product).map(categoryName).filter(Boolean).join(', '); }
 function colorName(id) { return localized(state.catalog.colors.find(x => x.id === id)?.name || ''); }
 function productById(id) { return state.catalog.products.find(x => x.id === id); }
 function productSizes(product) { return Array.isArray(product?.sizes) && product.sizes.length ? product.sizes : [{ id: 'default', name: 'Normál', price: Number(product?.price) || 0 }]; }
@@ -158,8 +160,8 @@ function renderFilters() {
 function filteredProducts() {
   const term = state.filters.search.toLocaleLowerCase('hu');
   const items = state.catalog.products.filter(product => {
-    const textMatch = !term || `${product.name} ${product.description} ${localized(product.name)} ${localized(product.description)} ${categoryName(product.categoryId)}`.toLocaleLowerCase(state.language === 'en' ? 'en' : 'hu').includes(term);
-    const categoryMatch = !state.filters.categories.size || state.filters.categories.has(product.categoryId);
+    const textMatch = !term || `${product.name} ${product.description} ${localized(product.name)} ${localized(product.description)} ${productCategoryNames(product)}`.toLocaleLowerCase(state.language === 'en' ? 'en' : 'hu').includes(term);
+    const categoryMatch = !state.filters.categories.size || productCategoryIds(product).some(categoryId => state.filters.categories.has(categoryId));
     const colorMatch = !state.filters.colors.size || product.colorIds.some(id => state.filters.colors.has(id));
     return textMatch && categoryMatch && colorMatch;
   });
@@ -180,7 +182,7 @@ function renderProducts() {
       <div class="product-card-body">
         <h3>${escapeHtml(localized(p.name))}</h3>
         <div class="price">${priceRange(p)}</div>
-        <div class="category">${escapeHtml(categoryName(p.categoryId))}</div>
+        <div class="category">${escapeHtml(productCategoryNames(p))}</div>
         <button class="quick-add" aria-label="${escapeHtml(localized(p.name))} ${tr('kosárba', 'add to cart')}">+</button>
       </div>
     </article>`).join('');
@@ -246,7 +248,7 @@ function showProduct(id) {
   const p = productById(id); if (!p) return;
   const sizes = productSizes(p);
   const colors = p.colorIds.map(colorId => state.catalog.colors.find(color => color.id === colorId)).filter(Boolean);
-  $('#productDialogContent').innerHTML = `<div class="product-detail"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}"><div class="product-detail-copy"><p class="eyebrow">${escapeHtml(categoryName(p.categoryId))}</p><h2>${escapeHtml(localized(p.name))}</h2><div class="detail-price" id="selectedSizePrice">${money(sizes[0].price)}</div><p class="description">${escapeHtml(localized(p.description))}</p>${p.seasonal ? `<div class="seasonal-note"><strong>${tr('Szezonális termék', 'Seasonal product')}</strong><span>${tr('A csokor a készítő fantáziája és az aktuálisan elérhető virágok alapján készül, ezért nem lesz teljesen azonos a képen láthatóval.', 'The bouquet is created using the florist\'s imagination and the flowers currently available, so it will not be identical to the picture.')}</span></div>` : ''}<label class="size-picker"><span>${tr('Válassz méretet', 'Choose a size')}</span><select id="productSizeSelect">${sizes.map(size => `<option value="${escapeHtml(size.id)}" data-price="${size.price}">${escapeHtml(size.name)} — ${money(size.price)}</option>`).join('')}</select></label><label class="color-picker"><span>${tr('Válassz színt', 'Choose a colour')}</span><select id="productColorSelect" required><option value="">${tr('Válassz…', 'Choose…')}</option>${colors.map(color => `<option value="${escapeHtml(color.id)}">${escapeHtml(localized(color.name))}</option>`).join('')}</select></label><div class="detail-tags"><span>${tr('Kézzel kötött', 'Hand-tied')}</span><span>${tr('Személyes átvétel', 'In-store pickup')}</span></div><button class="button button-primary full modal-add" data-id="${escapeHtml(p.id)}">${tr('Kosárba teszem', 'Add to cart')}</button></div></div>`;
+  $('#productDialogContent').innerHTML = `<div class="product-detail"><img src="${escapeHtml(p.images?.[0] || '/assets/hero-bouquet.png')}" alt="${escapeHtml(localized(p.name))}"><div class="product-detail-copy"><p class="eyebrow">${escapeHtml(productCategoryNames(p))}</p><h2>${escapeHtml(localized(p.name))}</h2><div class="detail-price" id="selectedSizePrice">${money(sizes[0].price)}</div><p class="description">${escapeHtml(localized(p.description))}</p>${p.seasonal ? `<div class="seasonal-note"><strong>${tr('Szezonális termék', 'Seasonal product')}</strong><span>${tr('A csokor a készítő fantáziája és az aktuálisan elérhető virágok alapján készül, ezért nem lesz teljesen azonos a képen láthatóval.', 'The bouquet is created using the florist\'s imagination and the flowers currently available, so it will not be identical to the picture.')}</span></div>` : ''}<label class="size-picker"><span>${tr('Válassz méretet', 'Choose a size')}</span><select id="productSizeSelect">${sizes.map(size => `<option value="${escapeHtml(size.id)}" data-price="${size.price}">${escapeHtml(size.name)} — ${money(size.price)}</option>`).join('')}</select></label><label class="color-picker"><span>${tr('Válassz színt', 'Choose a colour')}</span><select id="productColorSelect" required><option value="">${tr('Válassz…', 'Choose…')}</option>${colors.map(color => `<option value="${escapeHtml(color.id)}">${escapeHtml(localized(color.name))}</option>`).join('')}</select></label><div class="detail-tags"><span>${tr('Kézzel kötött', 'Hand-tied')}</span><span>${tr('Személyes átvétel', 'In-store pickup')}</span></div><button class="button button-primary full modal-add" data-id="${escapeHtml(p.id)}">${tr('Kosárba teszem', 'Add to cart')}</button></div></div>`;
   $('#productDialog').dataset.productId = id;
   if (!$('#productDialog').open) $('#productDialog').showModal();
 }
