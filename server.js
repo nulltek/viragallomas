@@ -108,6 +108,7 @@ function normalizeStore(data) {
     })) : [];
     product.sizes = sizes.length ? sizes : [{ id: 'default', name: 'Normál', price: fallbackPrice }];
     product.price = Math.min(...product.sizes.map(size => size.price));
+    product.seasonal = Boolean(product.seasonal);
     return product;
   }) : [];
   data.orders = Array.isArray(data.orders) ? data.orders : [];
@@ -476,7 +477,7 @@ function buildRecord(key, body, store, id) {
   if (!store.categories.some(x => x.id === body.categoryId)) return { error: 'Válassz kategóriát.' };
   const colorIds = Array.isArray(body.colorIds) ? body.colorIds.filter(cid => store.colors.some(x => x.id === cid)) : [];
   const images = Array.isArray(body.images) ? body.images.filter(x => typeof x === 'string' && (x.startsWith('data:image/') || x.startsWith('/assets/'))).slice(0, 6) : [];
-  return { id, name, description: cleanText(body.description, 1200), price, sizes, categoryId: body.categoryId, colorIds, images, featured: Boolean(body.featured), active: body.active !== false };
+  return { id, name, description: cleanText(body.description, 1200), price, sizes, categoryId: body.categoryId, colorIds, images, seasonal: Boolean(body.seasonal), featured: Boolean(body.featured), active: body.active !== false };
 }
 
 const server = http.createServer(async (req, res) => {

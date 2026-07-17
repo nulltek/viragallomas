@@ -111,7 +111,7 @@ function renderCustomOrders() {
 function renderProducts() {
   const term = ($('#productSearch')?.value || '').toLocaleLowerCase('hu');
   const products = state.data.products.filter(p => !term || `${p.name} ${p.description} ${catName(p.categoryId)}`.toLocaleLowerCase('hu').includes(term));
-  $('#adminProducts').innerHTML = products.map(p => `<article class="admin-product ${p.active === false ? 'inactive' : ''}" data-id="${esc(p.id)}"><img src="${esc(p.images?.[0] || '/assets/hero-bouquet.png')}" alt=""><div class="admin-product-copy"><h3>${esc(p.name)}</h3><p>${esc(catName(p.categoryId))} · ${priceRange(p)} · ${productSizes(p).length} méret${p.active === false ? ' · Rejtett' : ''}</p></div><div class="admin-product-actions"><button class="edit-product">Szerkesztés</button><button class="delete-product">Törlés</button></div></article>`).join('');
+  $('#adminProducts').innerHTML = products.map(p => `<article class="admin-product ${p.active === false ? 'inactive' : ''}" data-id="${esc(p.id)}"><img src="${esc(p.images?.[0] || '/assets/hero-bouquet.png')}" alt=""><div class="admin-product-copy"><h3>${esc(p.name)}</h3><p>${esc(catName(p.categoryId))} · ${priceRange(p)} · ${productSizes(p).length} méret${p.seasonal ? ' · Szezonális' : ''}${p.active === false ? ' · Rejtett' : ''}</p></div><div class="admin-product-actions"><button class="edit-product">Szerkesztés</button><button class="delete-product">Törlés</button></div></article>`).join('');
 }
 
 function renderEntities() {
@@ -224,7 +224,7 @@ function openProductEditor(product = null) {
   $('[name=name]', form).value = product?.name || ''; $('[name=description]', form).value = product?.description || '';
   $('[name=categoryId]', form).innerHTML = `<option value="">Válassz…</option>${state.data.categories.map(c => `<option value="${esc(c.id)}" ${product?.categoryId === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}`;
   $('#productColors').innerHTML = state.data.colors.map(c => `<label><input type="checkbox" value="${esc(c.id)}" ${product?.colorIds?.includes(c.id) ? 'checked' : ''}><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${esc(c.hex)}"></i> ${esc(c.name)}</label>`).join('');
-  $('[name=featured]', form).checked = Boolean(product?.featured); $('[name=active]', form).checked = product ? product.active !== false : true;
+  $('[name=seasonal]', form).checked = Boolean(product?.seasonal); $('[name=featured]', form).checked = Boolean(product?.featured); $('[name=active]', form).checked = product ? product.active !== false : true;
   renderSizeOptions(); renderPreviews(); $('#productEditor').showModal();
 }
 function renderPreviews() { $('#imagePreviews').innerHTML = state.currentImages.map((src, i) => `<div class="image-preview" data-index="${i}"><img src="${esc(src)}" alt=""><button type="button" aria-label="Kép eltávolítása">×</button></div>`).join(''); }
@@ -281,7 +281,7 @@ $$('#productEditor .dialog-close, .cancel-product').forEach(button => button.add
 $('#productForm').addEventListener('submit', async event => {
   event.preventDefault(); const form = event.currentTarget, data = new FormData(form), id = data.get('id'), button = $('button[type=submit]', form); setError(form); button.disabled = true;
   const sizes = $$('.size-option-row').map(row => ({ id: row.dataset.id, name: $('.size-name', row).value, price: Number($('.size-price', row).value) }));
-  const payload = { name: data.get('name'), description: data.get('description'), sizes, categoryId: data.get('categoryId'), colorIds: $$('#productColors input:checked').map(x => x.value), images: state.currentImages, featured: $('[name=featured]', form).checked, active: $('[name=active]', form).checked };
+  const payload = { name: data.get('name'), description: data.get('description'), sizes, categoryId: data.get('categoryId'), colorIds: $$('#productColors input:checked').map(x => x.value), images: state.currentImages, seasonal: $('[name=seasonal]', form).checked, featured: $('[name=featured]', form).checked, active: $('[name=active]', form).checked };
   try { await request(`/api/admin/products${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) }); $('#productEditor').close(); await loadData(); toast('Termék mentve.'); }
   catch (error) { setError(form, error.message); }
   finally { button.disabled = false; }
