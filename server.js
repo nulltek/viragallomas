@@ -316,8 +316,11 @@ function barionRequest(pathname, method = 'GET', payload) {
         let data = {};
         try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch {}
         if (response.statusCode >= 200 && response.statusCode < 300 && !data.Errors?.length) return resolve(data);
-        const message = data.Errors?.map(error => error.Description || error.Title).filter(Boolean).join(' ') || data.Message || 'Barion hiba történt.';
-        reject(new Error(message));
+        const firstError = data.Errors?.[0] || {};
+        const message = data.Errors?.map(error => error.Description || error.Title || error.Code).filter(Boolean).join(' ') || data.Message || 'Barion hiba történt.';
+        const error = new Error(message);
+        error.code = firstError.Code || firstError.ErrorCode || '';
+        reject(error);
       });
     });
     request.setTimeout(30000, () => request.destroy(new Error('A Barion válasza túl sokáig tartott.')));
@@ -521,6 +524,9 @@ async function api(req, res, url) {
       } catch (error) {
         console.error('Barion payment start failed', { orderId: order.id, message: error.message });
         order.status = 'payment_error'; order.paymentError = error.message; await saveStore(store);
+        if (error.code === 'ShopIsClosed' || /shop is closed/i.test(error.message)) {
+          return json(res, 503, { error: 'Az online Barion-fizetés átmenetileg nem érhető el, mert az elfogadóhely a Barion rendszerében zárva van. A rendelést átvételkori fizetéssel továbbra is leadhatod.', orderId: order.id });
+        }
         return json(res, 502, { error: 'A Barion fizetés nem indítható. Próbáld újra vagy válaszd a helyszíni készpénzes fizetést.', orderId: order.id });
       }
     }
