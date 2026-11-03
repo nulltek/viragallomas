@@ -500,7 +500,7 @@ async function api(req, res, url) {
         CallbackUrl: `${PUBLIC_URL}/api/barion/callback`,
         Currency: 'HUF',
         Locale: 'hu-HU',
-        GuestCheckOut: true,
+        GuestCheckout: true,
         PayerHint: email,
         Transactions: [{
           POSTransactionId: `${order.id}-1`,
@@ -519,6 +519,7 @@ async function api(req, res, url) {
         await saveStore(store);
         return json(res, 201, { orderId: order.id, checkoutUrl: barionPayment.GatewayUrl });
       } catch (error) {
+        console.error('Barion payment start failed', { orderId: order.id, message: error.message });
         order.status = 'payment_error'; order.paymentError = error.message; await saveStore(store);
         return json(res, 502, { error: 'A Barion fizetés nem indítható. Próbáld újra vagy válaszd a helyszíni készpénzes fizetést.', orderId: order.id });
       }
