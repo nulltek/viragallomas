@@ -9,6 +9,9 @@ const PUBLIC = path.join(ROOT, 'public');
 const DATA_FILE = process.env.DATA_FILE ? path.resolve(process.env.DATA_FILE) : path.join(ROOT, 'data', 'store.json');
 const PORT = Number(process.env.PORT || 3000);
 const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const BARION_ENV = process.env.BARION_ENV === 'live' ? 'live' : 'sandbox';
+const BARION_API_HOST = BARION_ENV === 'live' ? 'api.barion.com' : 'api.test.barion.com';
+const BARION_PIXEL_ID = /^BP-[A-Za-z0-9]{10}-[A-Za-z0-9]{2}$/.test(process.env.BARION_PIXEL_ID || '') ? process.env.BARION_PIXEL_ID : '';
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessions = new Map();
 const notificationEmail = process.env.ORDER_NOTIFICATION_EMAIL || 'viola32ildiko@gmail.com';
@@ -240,7 +243,7 @@ function orderNotification(order) {
   return sendNotification({
     subject: `Új webshop rendelés: ${order.id}`,
     replyTo: order.customer.email,
-    text: `Új rendelés érkezett a webshopból.\n\nAzonosító: ${order.id}\nNév: ${order.customer.name}\nE-mail: ${order.customer.email}\nTelefon: ${order.customer.phone}\nFizetés: ${order.payment === 'stripe' ? 'Stripe' : 'Készpénz az üzletben'}\nÁtvétel: Személyes átvétel\n\nTermékek:\n${lines}\n\nÖsszesen: ${order.total} Ft\nMegjegyzés: ${order.note || '—'}\n\nMegnyitás az adminban: ${PUBLIC_URL}/admin`
+    text: `Új webshop rendelés érkezett.\n\nAzonosító: ${order.id}\nNév: ${order.customer.name}\nE-mail: ${order.customer.email}\nTelefon: ${order.customer.phone}\nFizetés: ${order.payment === 'barion' ? 'Barion online fizetés' : 'Készpénz az üzletben'}\nÁtvétel: Személyes átvétel\n\nTermékek:\n${lines}\n\nÖsszesen: ${order.total} Ft\nMegjegyzés: ${order.note || '—'}\n\nMegnyitás az adminban: ${PUBLIC_URL}/admin`
   });
 }
 
@@ -295,6 +298,50 @@ function verifyStripe(raw, signature) {
   return safeEqual(digest, parts.v1);
 }
 
+function barionRequest(pathname, method = 'GET', payload) {
+  return new Promise((resolve, reject) => {
+    const body = payload ? Buffer.from(JSON.stringify(payload)) : null;
+    const request = https.request({
+      hostname: BARION_API_HOST, path: pathname, method,
+      headers: {
+        'x-pos-key': process.env.BARION_POS_KEY,
+        ...(body ? { 'Content-Type': 'application/json', 'Content-Length': body.length } : {})
+      }
+    }, response => {
+      const chunks = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => {
+        let data = {};
+        try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch {}
+        if (response.statusCode >= 200 && response.statusCode < 300 && !data.Errors?.length) return resolve(data);
+        const message = data.Errors?.map(error => error.Description || error.Title).filter(Boolean).join(' ') || data.Message || 'Barion hiba történt.';
+        reject(new Error(message));
+      });
+    });
+    request.setTimeout(30000, () => request.destroy(new Error('A Barion válasza túl sokáig tartott.')));
+    request.on('error', reject);
+    request.end(body || undefined);
+  });
+}
+
+async function refreshBarionOrder(store, order, paymentId = order.barionPaymentId) {
+  if (!paymentId || paymentId !== order.barionPaymentId) throw Object.assign(new Error('A Barion fizetési azonosító érvénytelen.'), { status: 400 });
+  const payment = await barionRequest(`/v4/Payment/${encodeURIComponent(paymentId)}/PaymentState`);
+  if (payment.PaymentId !== order.barionPaymentId || Number(payment.Total) !== Number(order.total) || payment.Currency !== 'HUF') {
+    throw new Error('A Barion fizetés adatai nem egyeznek a rendeléssel.');
+  }
+  order.barionStatus = payment.PaymentStatus;
+  order.updatedAt = now();
+  if (payment.PaymentStatus === 'Succeeded') {
+    order.status = 'paid';
+    order.paidAt = order.paidAt || now();
+  } else if (['Canceled', 'Expired', 'Failed'].includes(payment.PaymentStatus)) {
+    order.status = 'payment_error';
+  }
+  await saveStore(store);
+  return order;
+}
+
 function mime(file) {
   return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' })[path.extname(file).toLowerCase()] || 'application/octet-stream';
 }
@@ -305,7 +352,25 @@ async function api(req, res, url) {
   const store = await loadStore();
 
   if (pathname === '/api/catalog' && method === 'GET') return json(res, 200, publicCatalog(store));
-  if (pathname === '/api/health' && method === 'GET') return json(res, 200, { ok: true, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), databaseConfigured: Boolean(dbPool) });
+  if (pathname === '/api/health' && method === 'GET') return json(res, 200, { ok: true, barionConfigured: Boolean(process.env.BARION_POS_KEY && process.env.BARION_PAYEE_EMAIL), databaseConfigured: Boolean(dbPool) });
+
+  if (pathname === '/api/barion/callback' && method === 'POST') {
+    await readBody(req, 1024 * 1024);
+    const paymentId = url.searchParams.get('paymentId');
+    const order = store.orders.find(item => item.barionPaymentId === paymentId);
+    if (!order) return json(res, 200, { received: true });
+    await refreshBarionOrder(store, order, paymentId);
+    return json(res, 200, { received: true });
+  }
+
+  if (pathname === '/api/barion/payment-status' && method === 'GET') {
+    const orderId = cleanText(url.searchParams.get('order'), 80);
+    const paymentId = cleanText(url.searchParams.get('paymentId'), 100);
+    const order = store.orders.find(item => item.id === orderId && item.payment === 'barion');
+    if (!order || !paymentId || paymentId !== order.barionPaymentId) return json(res, 404, { error: 'A fizetés nem található.' });
+    const updated = await refreshBarionOrder(store, order, paymentId);
+    return json(res, 200, { orderId: updated.id, status: updated.status });
+  }
 
   if (pathname === '/api/stripe/webhook' && method === 'POST') {
     const raw = await readBody(req);
@@ -328,9 +393,9 @@ async function api(req, res, url) {
 
   if (pathname === '/api/orders' && method === 'POST') {
     const name = cleanText(body.name, 100), email = cleanText(body.email, 180), phone = cleanText(body.phone, 40);
-    const payment = body.payment === 'stripe' ? 'stripe' : 'cash';
+    const payment = body.payment === 'barion' ? 'barion' : 'cash';
     if (!name || !/^\S+@\S+\.\S+$/.test(email) || phone.length < 6 || !Array.isArray(body.items) || !body.items.length) return json(res, 400, { error: 'Kérjük, tölts ki minden adatot és ellenőrizd a kosarat.' });
-    if (payment === 'stripe' && !process.env.STRIPE_SECRET_KEY) return json(res, 503, { error: 'A Stripe még nincs konfigurálva. Válaszd a helyszíni készpénzes fizetést.' });
+    if (payment === 'barion' && (!process.env.BARION_POS_KEY || !process.env.BARION_PAYEE_EMAIL)) return json(res, 503, { error: 'A Barion fizetés még nincs konfigurálva. Válaszd a helyszíni készpénzes fizetést.' });
     const items = [];
     let total = 0;
     for (const line of body.items.slice(0, 40)) {
@@ -349,24 +414,38 @@ async function api(req, res, url) {
     await saveStore(store);
     await orderNotification(order);
 
-    if (payment === 'stripe') {
-      const params = {
-        mode: 'payment', success_url: `${PUBLIC_URL}/?payment=success&order=${encodeURIComponent(order.id)}`, cancel_url: `${PUBLIC_URL}/?payment=cancelled`, customer_email: email,
-        'metadata[order_id]': order.id, 'payment_method_types[0]': 'card'
+    if (payment === 'barion') {
+      const paymentRequest = {
+        POSKey: process.env.BARION_POS_KEY,
+        PaymentType: 'Immediate',
+        PaymentRequestId: order.id,
+        FundingSources: ['All'],
+        OrderNumber: order.id,
+        RedirectUrl: `${PUBLIC_URL}/?payment=barion&order=${encodeURIComponent(order.id)}`,
+        CallbackUrl: `${PUBLIC_URL}/api/barion/callback`,
+        Currency: 'HUF',
+        Locale: 'hu-HU',
+        GuestCheckOut: true,
+        PayerHint: email,
+        Transactions: [{
+          POSTransactionId: `${order.id}-1`,
+          Payee: process.env.BARION_PAYEE_EMAIL,
+          Total: total,
+          Comment: `Virág Állomás rendelés: ${order.id}`,
+          Items: items.map(item => ({ Name: item.name, Description: `${item.sizeName}, ${item.colorName}`, Quantity: item.quantity, Unit: 'db', UnitPrice: item.price, ItemTotal: item.price * item.quantity, SKU: item.productId }))
+        }]
       };
-      items.forEach((item, i) => {
-        params[`line_items[${i}][quantity]`] = String(item.quantity);
-        params[`line_items[${i}][price_data][currency]`] = 'huf';
-        params[`line_items[${i}][price_data][unit_amount]`] = String(item.price);
-        params[`line_items[${i}][price_data][product_data][name]`] = `${item.name} — ${item.sizeName}, ${item.colorName}`;
-      });
       try {
-        const session = await stripeRequest('/v1/checkout/sessions', params);
-        order.stripeSessionId = session.id; await saveStore(store);
-        return json(res, 201, { orderId: order.id, checkoutUrl: session.url });
+        const barionPayment = await barionRequest('/v2/Payment/Start', 'POST', paymentRequest);
+        if (!barionPayment.PaymentId || !barionPayment.GatewayUrl) throw new Error('A Barion nem adott vissza fizetési hivatkozást.');
+        order.barionPaymentId = barionPayment.PaymentId;
+        order.barionTransactionId = barionPayment.Transactions?.[0]?.TransactionId || '';
+        order.barionStatus = barionPayment.Status || 'Prepared';
+        await saveStore(store);
+        return json(res, 201, { orderId: order.id, checkoutUrl: barionPayment.GatewayUrl });
       } catch (error) {
         order.status = 'payment_error'; order.paymentError = error.message; await saveStore(store);
-        return json(res, 502, { error: 'A bankkártyás fizetés nem indítható. Próbáld újra vagy válassz készpénzt.', orderId: order.id });
+        return json(res, 502, { error: 'A Barion fizetés nem indítható. Próbáld újra vagy válaszd a helyszíni készpénzes fizetést.', orderId: order.id });
       }
     }
     return json(res, 201, { orderId: order.id });
@@ -396,7 +475,7 @@ async function api(req, res, url) {
   if (pathname === '/api/admin/me' && method === 'GET') return json(res, getSession(req) ? 200 : 401, { authenticated: Boolean(getSession(req)) });
 
   if (pathname.startsWith('/api/admin/') && !requireAdmin(req, res)) return;
-  if (pathname === '/api/admin/data' && method === 'GET') return json(res, 200, { categories: store.categories, colors: store.colors, products: store.products, orders: store.orders, customOrders: store.customOrders, openingHours: store.openingHours, stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY), databaseConfigured: Boolean(dbPool) });
+  if (pathname === '/api/admin/data' && method === 'GET') return json(res, 200, { categories: store.categories, colors: store.colors, products: store.products, orders: store.orders, customOrders: store.customOrders, openingHours: store.openingHours, barionConfigured: Boolean(process.env.BARION_POS_KEY && process.env.BARION_PAYEE_EMAIL), databaseConfigured: Boolean(dbPool) });
   if (pathname === '/api/admin/opening-hours' && method === 'PUT') {
     if (!Array.isArray(body.openingHours)) return json(res, 400, { error: 'A nyitvatartási adatok hiányoznak.' });
     const expectedIds = defaultOpeningHours().map(day => day.id);
@@ -488,10 +567,19 @@ function buildRecord(key, body, store, id) {
   return { id, name, description: cleanText(body.description, 1200), price, sizes, categoryId: categoryIds[0], categoryIds, colorIds, images, seasonal: Boolean(body.seasonal), featured: Boolean(body.featured), active: body.active !== false };
 }
 
-const server = http.createServer(async (req, res) => {
+async function handler(req, res) {
   try {
     const url = new URL(req.url, PUBLIC_URL);
     if (url.pathname.startsWith('/api/')) return await api(req, res, url);
+    if (url.pathname === '/barion-pixel.js') {
+      const pixelId = JSON.stringify(BARION_PIXEL_ID);
+      const script = `(() => { const pixelId = ${pixelId}; if (!pixelId) return; window.bp = window.bp || function () { (window.bp.q = window.bp.q || []).push(arguments); }; window.bp.l = 1 * new Date(); const scriptElement = document.createElement('script'); const firstScript = document.getElementsByTagName('script')[0]; scriptElement.async = true; scriptElement.src = 'https://pixel.barion.com/bp.js'; firstScript.parentNode.insertBefore(scriptElement, firstScript); window.barion_pixel_id = pixelId; window.bp('init', 'addBarionPixelId', pixelId); })();`;
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' }); return res.end(script);
+    }
+    if (url.pathname === '/barion-pixel.gif') {
+      if (!BARION_PIXEL_ID) { res.writeHead(204); return res.end(); }
+      res.writeHead(302, { Location: `https://pixel.barion.com/a.gif?ba_pixel_id=${encodeURIComponent(BARION_PIXEL_ID)}&ev=contentView&noscript=1`, 'Cache-Control': 'no-store' }); return res.end();
+    }
     let relative = url.pathname === '/admin' || url.pathname === '/admin/' ? 'admin.html' : ['/egyedi-rendeles', '/egyedi-rendeles/', '/custom-order', '/custom-order/'].includes(url.pathname) ? 'custom-order.html' : url.pathname === '/' ? 'index.html' : url.pathname.replace(/^\//, '');
     const file = path.resolve(PUBLIC, relative);
     if (!file.startsWith(path.resolve(PUBLIC)) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
@@ -503,7 +591,9 @@ const server = http.createServer(async (req, res) => {
     console.error(error);
     if (!res.headersSent) json(res, error.status || 500, { error: error.message || 'Szerverhiba.' });
   }
-});
+}
+
+const server = http.createServer(handler);
 
 async function startServer() {
   await ensureDatabase();
@@ -511,11 +601,15 @@ async function startServer() {
     console.log(`Virág Állomás: ${PUBLIC_URL}`);
     console.log(`Admin: ${PUBLIC_URL}/admin`);
     console.log(dbPool ? 'PostgreSQL adattárolás aktív.' : 'Helyi JSON adattárolás aktív.');
-    if (!process.env.STRIPE_SECRET_KEY) console.log('Stripe nincs konfigurálva; a készpénzes rendelés működik.');
+    if (!process.env.BARION_POS_KEY || !process.env.BARION_PAYEE_EMAIL) console.log('Barion nincs konfigurálva; a készpénzes rendelés működik.');
   });
 }
 
-startServer().catch(error => {
-  console.error('Az adatbázis vagy a szerver nem indítható:', error);
-  process.exit(1);
-});
+if (require.main === module) {
+  startServer().catch(error => {
+    console.error('Az adatbázis vagy a szerver nem indítható:', error);
+    process.exit(1);
+  });
+}
+
+module.exports = handler;

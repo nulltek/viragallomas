@@ -8,6 +8,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
+  <script src="/barion-pixel.js"></script>
+  <noscript><img height="1" width="1" style="display:none" alt="Barion Pixel" src="/barion-pixel.gif"></noscript>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/product-sizes.css">
 </head>
@@ -118,7 +120,7 @@
       <div><a class="brand footer-brand" href="#top"><span>VIRÁG ÁLLOMÁS</span> <em>SZEGED</em></a><p>Virágba csomagolt üzenetek,<br>Szegeden, szeretettel.</p></div>
       <div><h3>Kapcsolat</h3><a href="tel:+36202621726">+36 20 262 1726</a><a href="mailto:viola32ildiko@gmail.com">viola32ildiko@gmail.com</a><p>6721 Szeged, Szent Ferenc utca 1.</p></div>
       <div><h3>Nyitvatartás</h3><p class="opening-hours" id="openingHours"></p></div>
-      <div><h3>Információ</h3><button class="footer-link" data-info="aszf">Általános szerződési feltételek</button><button class="footer-link" data-info="privacy">Adatkezelési tájékoztató</button><a href="/admin">Admin belépés</a></div>
+      <div><h3>Információ</h3><button class="footer-link" data-info="aszf">Általános szerződési feltételek</button><button class="footer-link" data-info="privacy">Adatkezelési tájékoztató</button><a href="/admin">Admin belépés</a><a class="barion-footer-mark" href="https://www.barion.com/hu/" target="_blank" rel="noopener noreferrer" aria-label="Fizetés a Barion rendszerén keresztül"><img src="/assets/barion-smart-payment.svg" alt="Fizetés Barionnal"></a></div>
     </div>
     <div class="footer-bottom shell"><span>© <span id="year"></span> Virág Állomás Szeged</span><span>Friss virág. Gondos kéz. Szívből.</span></div>
     <div class="design-credit">Webdesign by NullTek</div>
@@ -141,7 +143,7 @@
       <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
       <label>Telefonszám<input name="phone" type="tel" autocomplete="tel" required></label>
       <label>Megjegyzés <small>(opcionális)</small><textarea name="note" rows="3" placeholder="Például: a csokor köszöntőkártyájának szövege"></textarea></label>
-      <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label class="payment-disabled" aria-disabled="true"><input type="radio" name="payment" value="stripe" disabled><span><b>Bankkártya (Stripe)</b><small>Még nem elérhető</small></span></label></fieldset>
+      <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label><input type="radio" name="payment" value="barion"><span><b>Online bankkártyás fizetés</b><small>Biztonságos fizetés Barionnal</small></span></label><a class="barion-payment-mark" href="https://www.barion.com/hu/" target="_blank" rel="noopener noreferrer" aria-label="További információ a Barion fizetésről"><img src="/assets/barion-smart-payment.svg" alt="Fizetés Barionnal"></a></fieldset>
       <label class="terms"><input type="checkbox" required> <span>Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.</span></label>
       <p class="no-cancellation-note">Virág rendelése esetén a rendelés leadása után nincs lehetőség lemondásra.</p>
       <button class="button cancel-disabled full" type="button" disabled>Rendelés lemondása</button>

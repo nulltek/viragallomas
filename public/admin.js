@@ -44,8 +44,8 @@ function categoryNames(product) { return productCategoryIds(product).map(id => s
 
 function renderAll() {
   renderOverview(); renderOrders(); renderCustomOrders(); renderProducts(); renderEntities(); renderOpeningHoursEditor();
-  $('#stripeChip').className = `stripe-chip ${state.data.stripeConfigured ? 'ok' : 'warn'}`;
-  $('#stripeChip').textContent = state.data.stripeConfigured ? '● Stripe csatlakoztatva' : '○ Stripe beállításra vár';
+  $('#stripeChip').className = `stripe-chip ${state.data.barionConfigured ? 'ok' : 'warn'}`;
+  $('#stripeChip').textContent = state.data.barionConfigured ? '● Barion csatlakoztatva' : '○ Barion beállításra vár';
   $('#newOrderCount').textContent = state.data.orders.filter(o => ['new', 'paid'].includes(o.status)).length || '';
   $('#newCustomOrderCount').textContent = state.data.customOrders.filter(order => order.status === 'new').length || '';
 }
@@ -65,7 +65,7 @@ function filteredOrders() {
 }
 function renderOrders() {
   const orders = filteredOrders();
-  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)}${i.colorName ? `, ${esc(i.colorName)}` : ''})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td><td><button class="open-order" type="button" data-order-id="${esc(o.id)}">Megnyitás</button></td></tr>`).join('');
+  $('#ordersTable').innerHTML = orders.map(o => `<tr data-id="${esc(o.id)}"><td><strong>${esc(o.id)}</strong><small>${dateTime(o.createdAt)}</small></td><td><strong>${esc(o.customer.name)}</strong><small>${esc(o.customer.email)}<br>${esc(o.customer.phone)}</small>${o.note ? `<small>Megjegyzés: ${esc(o.note)}</small>` : ''}</td><td class="order-items">${o.items.map(i => `<small>${i.quantity}× ${esc(i.name)}${i.sizeName ? ` (${esc(i.sizeName)}${i.colorName ? `, ${esc(i.colorName)}` : ''})` : ''} · ${money(i.price)}</small>`).join('')}</td><td><strong>${o.payment === 'barion' ? 'Barion' : o.payment === 'stripe' ? 'Stripe' : 'Készpénz'}</strong><small>Személyes átvétel</small></td><td><strong>${money(o.total)}</strong></td><td><select class="order-status">${Object.entries(statusLabels).map(([value, label]) => `<option value="${value}" ${o.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></td><td><button class="open-order" type="button" data-order-id="${esc(o.id)}">Megnyitás</button></td></tr>`).join('');
   $('#ordersEmpty').hidden = orders.length > 0;
 }
 

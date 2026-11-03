@@ -18,27 +18,33 @@ npm start
 
 Az első belépés után az admin felületen azonnal változtasd meg a jelszót. Éles környezetben állíts be hosszú, véletlenszerű `SESSION_SECRET` értéket és egyedi `ADMIN_INITIAL_PASSWORD` értéket még az első indítás előtt.
 
-## Stripe beállítása
+## Barion beállítása
 
 Állítsd be ezeket a környezeti változókat:
 
 ```text
 PUBLIC_URL=https://a-sajat-domain.hu
-STRIPE_SECRET_KEY=sk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+BARION_ENV=sandbox
+BARION_POS_KEY=a-barion-sandbox-poskey
+BARION_PAYEE_EMAIL=a-barion-fiokhoz-tartozo@email.hu
+BARION_PIXEL_ID=BP-XXXXXXXXXX-00
 SESSION_SECRET=legalabb-32-karakteres-veletlen-ertek
 DATABASE_URL=postgresql://...
 ```
 
-A Stripe Dashboardban hozd létre a webhookot erre a címre:
+Éles környezetben állítsd a `BARION_ENV` értékét `live`-ra, és használd az éles, jóváhagyott Barion shop POSKey értékét. A POSKey titok; csak a tárhelyszolgáltató környezeti változójaként tárold.
+
+A Barion shop beállításaiban add meg vagy az indított fizetésben kapja meg ezt a callback címet:
 
 ```text
-https://a-sajat-domain.hu/api/stripe/webhook
+https://a-sajat-domain.hu/api/barion/callback
 ```
 
-Figyelt esemény: `checkout.session.completed`.
+Az alkalmazás a callback után a Barion PaymentState végpontján ellenőrzi a fizetés összegét, pénznemét és végleges állapotát, és csak `Succeeded` állapotnál jelöli fizetettnek a rendelést. A vásárló visszairányítása önmagában nem hitelesíti a fizetést.
 
-Stripe kulcs nélkül a webshop készpénzes, személyes átvételes rendelési módja teljesen működik; a bankkártyás lehetőség érthető figyelmeztetést ad.
+Barion kulcs nélkül a webshop készpénzes, személyes átvételes rendelési módja továbbra is működik. Kezdd a Sandbox környezetben, és csak a Barion jóváhagyása után válts élesre.
+
+A Base Barion Pixelhez a Barion shop részleteinél található, `BP-` kezdetű Pixel ID-t add meg `BARION_PIXEL_ID` néven. Ez nem titkos kulcs; a Pixel a publikus webshopoldalakon töltődik be.
 
 ## Rendelési e-mail értesítések
 
@@ -59,7 +65,7 @@ Az App Passwordöt kizárólag a tárhelyszolgáltató titkos környezeti válto
 - reszponzív webshop, termékkeresés, kategória- és színszűrés, rendezés
 - kedvencek, termékrészletek, tartós kosár
 - személyes átvételes pénztár névvel, e-maillel és telefonszámmal
-- készpénzes vagy Stripe bankkártyás fizetés
+- készpénzes vagy Barion online bankkártyás fizetés
 - védett admin felület, jelszócsere
 - termékek, kategóriák és színek létrehozása, szerkesztése és törlése
 - termékenként legfeljebb 6 feltöltött kép

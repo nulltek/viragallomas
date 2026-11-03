@@ -31,7 +31,7 @@ const uiTranslations = new Map(Object.entries({
   'Rendelésed': 'Your order', 'Kosár': 'Cart', 'A kosarad még üres.': 'Your cart is empty.', 'Válassz egy csokrot, amit örömmel elkészíthetünk.': 'Choose a bouquet we would be delighted to make.', 'Megnézem a csokrokat': 'View bouquets',
   'Összesen': 'Total', 'Kizárólag személyes átvétel üzletünkben': 'In-store pickup only', '⌖ Kizárólag személyes átvétel üzletünkben': '⌖ In-store pickup only', 'Tovább a pénztárhoz': 'Continue to checkout', 'Vissza a kosárhoz': 'Back to cart', '← Vissza a kosárhoz': '← Back to cart',
   'Átvételi adatok': 'Pickup details', 'Név': 'Name', 'Telefonszám': 'Phone number', 'Megjegyzés': 'Note', '(opcionális)': '(optional)', 'Fizetés': 'Payment',
-  'Fizetés átvételkor': 'Pay on pickup', 'Készpénzzel az üzletben': 'Cash in store', 'Bankkártya (Stripe)': 'Card (Stripe)', 'Még nem elérhető': 'Not available yet',
+  'Fizetés átvételkor': 'Pay on pickup', 'Készpénzzel az üzletben': 'Cash in store', 'Online bankkártyás fizetés': 'Pay online by card', 'Biztonságos fizetés Barionnal': 'Secure payment with Barion',
   'Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.': 'I accept the Terms and Conditions and the Privacy Notice.', 'Rendelés leadása': 'Place order', 'Rendelés leadása ·': 'Place order ·', 'Rendelés lemondása': 'Cancel order', 'Virág rendelése esetén a rendelés leadása után nincs lehetőség lemondásra.': 'Flower orders cannot be cancelled after they have been submitted.',
   'Rendelésed sikeresen leadva!': 'Your order has been placed successfully!', 'Köszönjük, rendelésedet rögzítettük.': 'Thank you, we have recorded your order.', 'Rendelési azonosítód:': 'Your order number:', 'Hamarosan felvesszük veled a kapcsolatot az átvétel részleteivel.': 'We will contact you shortly with the pickup details.', 'Rendben': 'Done'
 }));
@@ -261,7 +261,22 @@ function showToast(message) {
 function showInfo(type) {
   $('#infoDialog').dataset.type = type;
   const customRequestPrivacy = state.language === 'en' ? '<p><strong>Custom requests:</strong> the description and any optional reference images are processed to assess, discuss and fulfil the requested arrangement. Requests that do not become orders are retained for up to one year; fulfilled requests follow the order retention period.</p>' : '<p><strong>Egyedi igények:</strong> a leírást és az opcionálisan csatolt referenciafotókat az elképzelés felméréséhez, egyeztetéséhez és teljesítéséhez kezeljük. A megrendeléssé nem váló igényeket legfeljebb 1 évig, a teljesített igényeket a rendelésekre vonatkozó megőrzési idő szerint őrizzük.</p>';
-  $('#infoDialogContent').innerHTML = type === 'aszf' ? termsContent() : privacyContent().replace('<h3>3.', `${customRequestPrivacy}<h3>3.`);
+  const legalContent = type === 'aszf'
+    ? termsContent()
+      .replace('Last updated: 17 July 2026', 'Last updated: 3 November 2026')
+      .replace('Tax number: 67678495-1-26<br>Email', 'Tax number: 67678495-1-26<br>Individual entrepreneur registration number: 50591428<br>Email')
+      .replace(/<p>The currently available payment method is[\s\S]*?<\/p><h3>7\./, '<p>Online card payments are processed through <strong>Barion</strong>. The webshop does not store or process card details.</p><h3>7.')
+      .replace(/<p>No delivery is available[\s\S]*?<\/p><h3>8\./, '<p>No delivery is available. Orders are normally ready for in-store pickup within <strong>1–2 business days</strong>; the exact pickup time is confirmed with the customer. Collection is at 6721 Szeged, Szent Ferenc utca 1.</p><h3>8.')
+      .replace('Utolsó frissítés: 2026. július 17.', 'Utolsó frissítés: 2026. november 3.')
+      .replace('Adószám: 67678495-1-26<br>E-mail', 'Adószám: 67678495-1-26<br>Egyéni vállalkozói nyilvántartási szám: 50591428<br>E-mail')
+      .replace(/<p>Jelenleg az elérhető fizetési mód:[\s\S]*?<\/p><h3>7\./, '<p>Online bankkártyás fizetés Barionon keresztül érhető el. A webshop bankkártyaadatokat nem tárol és nem kezel.</p><h3>7.')
+      .replace(/<p>Kiszállítás nem érhető el[\s\S]*?<\/p><h3>8\./, '<p>Kiszállítás nem érhető el. A rendelések személyes átvételre általában <strong>1–2 munkanapon belül</strong> készülnek el; a pontos átvételi időpontról a szolgáltató egyeztet a vásárlóval. Átvétel helye: 6721 Szeged, Szent Ferenc utca 1.</p><h3>8.')
+    : privacyContent()
+      .replace(/<p>Stripe card payment is not active[\s\S]*?<\/p>/, '<p><strong>Barion Payment Zrt.</strong> processes online card payments. The webshop does not receive or store card details.</p>')
+      .replace(/<p>A Stripe bankkártyás fizetés nem aktív[\s\S]*?<\/p>/, '<p><strong>A Barion Payment Zrt.</strong> dolgozza fel az online bankkártyás fizetéseket. A webshop bankkártyaadatokat nem kap meg és nem tárol.</p>')
+      .replace('</ul><p>No delivery address', '</ul><p>The Base Barion Pixel is used on webshop pages for payment-fraud prevention. The Pixel ID is public; the implementation does not collect or store card details.</p><p>No delivery address')
+      .replace('</ul><p>A jelenlegi pénztár', '</ul><p>A Base Barion Pixel a webshopoldalakon fizetési csalások megelőzésére működik. A Pixel ID nyilvános azonosító; a webshop bankkártyaadatokat nem gyűjt és nem tárol.</p><p>A jelenlegi pénztár');
+  $('#infoDialogContent').innerHTML = type === 'aszf' ? legalContent : legalContent.replace('<h3>3.', `${customRequestPrivacy}<h3>3.`);
   if (!$('#infoDialog').open) $('#infoDialog').showModal();
   $('#infoDialog').scrollTop = 0;
 }
@@ -274,6 +289,19 @@ function handlePaymentReturn() {
     history.replaceState({}, '', '/');
   } else if (params.get('payment') === 'cancelled') {
     showToast(tr('A bankkártyás fizetést megszakítottad. A kosarad megmaradt.', 'Card payment was cancelled. Your cart has been kept.')); history.replaceState({}, '', '/');
+  } else if (params.get('payment') === 'barion') {
+    const order = params.get('order'), paymentId = params.get('paymentId');
+    if (!order || !paymentId) return history.replaceState({}, '', '/');
+    request(`/api/barion/payment-status?order=${encodeURIComponent(order)}&paymentId=${encodeURIComponent(paymentId)}`)
+      .then(result => {
+        if (result.status === 'paid') {
+          state.cart = []; saveCart(); openCart(); showOrderSuccess(result.orderId);
+        } else {
+          showToast(tr('A fizetés feldolgozása folyamatban van. Hamarosan visszaigazoljuk.', 'Your payment is being processed. We will confirm it shortly.'));
+        }
+      })
+      .catch(() => showToast(tr('A fizetés állapotát még ellenőrizzük. Kérjük, ne indíts új rendelést.', 'We are still checking your payment. Please do not place a new order.')))
+      .finally(() => history.replaceState({}, '', '/'));
   }
 }
 
@@ -311,7 +339,9 @@ $('#checkoutButton').addEventListener('click', () => { dom.cartLines.hidden = tr
 $('.back-to-cart').addEventListener('click', () => { dom.cartLines.hidden = false; dom.cartFooter.hidden = false; dom.checkoutForm.hidden = true; });
 dom.checkoutForm.addEventListener('submit', async event => {
   event.preventDefault(); const button = $('button[type=submit]', dom.checkoutForm); const error = $('#checkoutError');
-  button.disabled = true; button.textContent = tr('Rendelés mentése…', 'Placing order…'); error.textContent = '';
+  // Keep #checkoutTotal in the button while the request is in progress. renderCart()
+  // updates that element after a successful order clears the cart.
+  button.disabled = true; button.innerHTML = `${tr('Rendelés mentése…', 'Placing order…')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0))}</span>`; error.textContent = '';
   const form = new FormData(dom.checkoutForm);
   try {
     const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), payment: form.get('payment'), items: state.cart }) });
