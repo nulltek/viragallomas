@@ -267,6 +267,8 @@ function showInfo(type) {
       .replace('Sárközi Ildikó Éva EV.', state.language === 'en' ? 'Sárközi Viola, individual entrepreneur' : 'Sárközi Viola egyéni vállalkozó')
       .replace('Tax number: 67678495-1-26<br>Email', 'Tax number: 67678495-1-26<br>Individual entrepreneur registration number: 50591428<br>Email')
       .replace('Adószám: 67678495-1-26<br>E-mail', 'Adószám: 67678495-1-26<br>Egyéni vállalkozói nyilvántartási szám: 50591428<br>E-mail')
+      .replace('<li>Order data: ordered products, quantities, amount, time, pickup payment method and optional note.</li>', '<li>Order data: ordered products, quantities, amount, time, pickup payment method and optional note; where an invoice is requested, billing name, billing address and optional tax number.</li>')
+      .replace('<li>Megrendelési adatok: termékek, mennyiségek, összeg, időpont, átvételi fizetési mód és opcionális megjegyzés.</li>', '<li>Megrendelési adatok: termékek, mennyiségek, összeg, időpont, átvételi fizetési mód és opcionális megjegyzés; számlaigénylés esetén számlázási név, cím és opcionális adószám.</li>')
       .replace('Updated: 17 July 2026', 'Updated: 3 November 2026')
       .replace('Frissítve: 2026. július 17.', 'Frissítve: 2026. november 3.')
       .replace(/<p>Stripe card payment is not active[\s\S]*?<\/p>/, '<p><strong>Barion Payment Zrt.</strong> processes online card payments. The webshop does not receive or store card details.</p>')
@@ -334,6 +336,15 @@ dom.cartLines.addEventListener('click', event => {
 
 $('#checkoutButton').addEventListener('click', () => { dom.cartLines.hidden = true; dom.cartFooter.hidden = true; dom.checkoutForm.hidden = false; });
 $('.back-to-cart').addEventListener('click', () => { dom.cartLines.hidden = false; dom.cartFooter.hidden = false; dom.checkoutForm.hidden = true; });
+const invoiceRequested = $('#invoiceRequested');
+const invoiceDetails = $('#invoiceDetails');
+invoiceRequested.addEventListener('change', () => {
+  const requested = invoiceRequested.checked;
+  invoiceDetails.hidden = !requested;
+  invoiceDetails.disabled = !requested;
+  $$('[data-invoice-required]', invoiceDetails).forEach(input => input.required = requested);
+  if (!requested) $$('input', invoiceDetails).forEach(input => input.value = '');
+});
 dom.checkoutForm.addEventListener('submit', async event => {
   event.preventDefault(); const button = $('button[type=submit]', dom.checkoutForm); const error = $('#checkoutError');
   // Keep #checkoutTotal in the button while the request is in progress. renderCart()
@@ -341,7 +352,7 @@ dom.checkoutForm.addEventListener('submit', async event => {
   button.disabled = true; button.innerHTML = `${tr('Rendelés mentése…', 'Placing order…')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0))}</span>`; error.textContent = '';
   const form = new FormData(dom.checkoutForm);
   try {
-    const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), payment: form.get('payment'), items: state.cart }) });
+    const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), payment: form.get('payment'), invoiceRequested: form.get('invoiceRequested') === 'on', billingName: form.get('billingName'), billingAddress: form.get('billingAddress'), billingTaxNumber: form.get('billingTaxNumber'), items: state.cart }) });
     if (response.checkoutUrl) { location.href = response.checkoutUrl; return; }
     state.cart = []; saveCart(); showOrderSuccess(response.orderId);
   } catch (err) { error.textContent = err.message; }

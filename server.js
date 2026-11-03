@@ -394,7 +394,10 @@ async function api(req, res, url) {
   if (pathname === '/api/orders' && method === 'POST') {
     const name = cleanText(body.name, 100), email = cleanText(body.email, 180), phone = cleanText(body.phone, 40);
     const payment = body.payment === 'barion' ? 'barion' : 'cash';
+    const invoiceRequested = body.invoiceRequested === true;
+    const billingName = cleanText(body.billingName, 160), billingAddress = cleanText(body.billingAddress, 300), billingTaxNumber = cleanText(body.billingTaxNumber, 40);
     if (!name || !/^\S+@\S+\.\S+$/.test(email) || phone.length < 6 || !Array.isArray(body.items) || !body.items.length) return json(res, 400, { error: 'Kérjük, tölts ki minden adatot és ellenőrizd a kosarat.' });
+    if (invoiceRequested && (!billingName || !billingAddress)) return json(res, 400, { error: 'Számlaigényléshez add meg a számlázási nevet és címet.' });
     if (payment === 'barion' && (!process.env.BARION_POS_KEY || !process.env.BARION_PAYEE_EMAIL)) return json(res, 503, { error: 'A Barion fizetés még nincs konfigurálva. Válaszd a helyszíni készpénzes fizetést.' });
     const items = [];
     let total = 0;
@@ -409,7 +412,7 @@ async function api(req, res, url) {
       items.push({ productId: product.id, name: product.name, sizeId: size.id, sizeName: size.name, colorId: color.id, colorName: color.name, price: size.price, quantity, image: product.images?.[0] || '' });
       total += size.price * quantity;
     }
-    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, note: cleanText(body.note, 600), items, total };
+    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, invoice: { requested: invoiceRequested, billingName, billingAddress, billingTaxNumber, status: invoiceRequested ? 'pending_configuration' : 'not_requested' }, note: cleanText(body.note, 600), items, total };
     store.orders.unshift(order);
     await saveStore(store);
     await orderNotification(order);
