@@ -12,6 +12,7 @@ const PUBLIC_URL = (process.env.PUBLIC_URL || `http://localhost:${PORT}`).replac
 const BARION_ENV = process.env.BARION_ENV === 'live' ? 'live' : 'sandbox';
 const BARION_API_HOST = BARION_ENV === 'live' ? 'api.barion.com' : 'api.test.barion.com';
 const BARION_PIXEL_ID = /^BP-[A-Za-z0-9]{10}-[A-Za-z0-9]{2}$/.test(process.env.BARION_PIXEL_ID || '') ? process.env.BARION_PIXEL_ID : '';
+const SZAMLAZZ_AGENT_KEY = process.env.SZAMLAZZ_AGENT_KEY || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessions = new Map();
 const notificationEmail = process.env.ORDER_NOTIFICATION_EMAIL || 'viola32ildiko@gmail.com';
@@ -324,6 +325,21 @@ function barionRequest(pathname, method = 'GET', payload) {
   });
 }
 
+const xml = value => String(value ?? '').replace(/[<>&'\"]/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[char]));
+function szamlazzInvoice(order) {
+  if (!SZAMLAZZ_AGENT_KEY || !order.invoice?.requested || !order.invoice?.electronicConsent || order.invoice.status === 'issued') return Promise.resolve(order);
+  const match = String(order.invoice.billingAddress || '').match(/^\s*(\d{4})\s+([^,]+),?\s+(.+)$/);
+  if (!match) { order.invoice.status = 'error'; order.invoice.error = 'A számlázási cím formátuma legyen: 6721 Szeged, Utca 1.'; return Promise.resolve(order); }
+  const date = new Date(order.paidAt || now()).toISOString().slice(0, 10);
+  const lines = order.items.map(item => `<tetel><megnevezes>${xml(item.name)} (${xml(item.sizeName)}${item.colorName ? `, ${xml(item.colorName)}` : ''})</megnevezes><azonosito>${xml(item.productId)}</azonosito><mennyiseg>${Number(item.quantity)}</mennyiseg><mennyisegiEgyseg>db</mennyisegiEgyseg><nettoEgysegar>${Number(item.price)}</nettoEgysegar><afakulcs>AAM</afakulcs><nettoErtek>${Number(item.price) * Number(item.quantity)}</nettoErtek><afaErtek>0</afaErtek><bruttoErtek>${Number(item.price) * Number(item.quantity)}</bruttoErtek></tetel>`).join('');
+  const body = `<?xml version="1.0" encoding="UTF-8"?><xmlszamla xmlns="http://www.szamlazz.hu/xmlszamla"><beallitasok><szamlaagentkulcs>${xml(SZAMLAZZ_AGENT_KEY)}</szamlaagentkulcs><eszamla>true</eszamla><szamlaLetoltes>false</szamlaLetoltes><valaszVerzio>2</valaszVerzio><szamlaKulsoAzon>${xml(order.id)}</szamlaKulsoAzon></beallitasok><fejlec><keltDatum>${date}</keltDatum><teljesitesDatum>${date}</teljesitesDatum><fizetesiHataridoDatum>${date}</fizetesiHataridoDatum><fizmod>Barion</fizmod><penznem>HUF</penznem><szamlaNyelve>hu</szamlaNyelve><rendelesSzam>${xml(order.id)}</rendelesSzam><fizetve>true</fizetve></fejlec><elado><emailTargy>Elektronikus számla – Virág Állomás</emailTargy><emailSzoveg>Köszönjük a rendelésedet. Mellékeljük az elektronikus számlát.</emailSzoveg></elado><vevo><nev>${xml(order.invoice.billingName)}</nev><orszag>Magyarország</orszag><irsz>${xml(match[1])}</irsz><telepules>${xml(match[2].trim())}</telepules><cim>${xml(match[3].trim())}</cim><email>${xml(order.customer.email)}</email><sendEmail>true</sendEmail>${order.invoice.billingTaxNumber ? `<adoalany>1</adoalany><adoszam>${xml(order.invoice.billingTaxNumber)}</adoszam>` : '<adoalany>-1</adoalany>'}</vevo><tetelek>${lines}</tetelek></xmlszamla>`;
+  const boundary = `----viragallomas${crypto.randomBytes(8).toString('hex')}`;
+  const multipart = Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="action-szamla_agent_generate"; filename="invoice.xml"\r\nContent-Type: application/xml\r\n\r\n${body}\r\n--${boundary}--\r\n`);
+  return new Promise((resolve, reject) => {
+    const request = https.request({ hostname: 'www.szamlazz.hu', path: '/szamla/', method: 'POST', headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}`, 'Content-Length': multipart.length } }, response => { const chunks = []; response.on('data', chunk => chunks.push(chunk)); response.on('end', () => { const result = Buffer.concat(chunks).toString('utf8'); if (response.statusCode >= 300 || /<hibakod>[^0]/.test(result)) return reject(new Error(result.slice(0, 500))); order.invoice.status = 'issued'; order.invoice.issuedAt = now(); order.invoice.documentNumber = (result.match(/<szamlaszam>([^<]+)/) || [])[1] || ''; resolve(order); }); }); request.on('error', reject); request.end(multipart);
+  });
+}
+
 async function refreshBarionOrder(store, order, paymentId = order.barionPaymentId) {
   if (!paymentId || paymentId !== order.barionPaymentId) throw Object.assign(new Error('A Barion fizetési azonosító érvénytelen.'), { status: 400 });
   const payment = await barionRequest(`/v4/Payment/${encodeURIComponent(paymentId)}/PaymentState`);
@@ -335,6 +351,7 @@ async function refreshBarionOrder(store, order, paymentId = order.barionPaymentI
   if (payment.PaymentStatus === 'Succeeded') {
     order.status = 'paid';
     order.paidAt = order.paidAt || now();
+    try { await szamlazzInvoice(order); } catch (error) { order.invoice = { ...(order.invoice || {}), status: 'error', error: error.message }; }
   } else if (['Canceled', 'Expired', 'Failed'].includes(payment.PaymentStatus)) {
     order.status = 'payment_error';
   }
