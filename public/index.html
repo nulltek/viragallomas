@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&display=swap" rel="stylesheet">
   <script src="/barion-pixel.js"></script>
-  <noscript><img height="1" width="1" style="display:none" alt="Barion Pixel" src="/barion-pixel.gif"></noscript>
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/product-sizes.css">
 </head>
@@ -144,10 +143,9 @@
       <label>Telefonszám<input name="phone" type="tel" autocomplete="tel" required></label>
       <label>Megjegyzés <small>(opcionális)</small><textarea name="note" rows="3" placeholder="Például: a csokor köszöntőkártyájának szövege"></textarea></label>
       <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label><input type="radio" name="payment" value="barion"><span><b>Online bankkártyás fizetés</b><small>Biztonságos fizetés Barionnal</small></span></label><a class="barion-payment-mark" href="https://www.barion.com/hu/" target="_blank" rel="noopener noreferrer" aria-label="További információ a Barion fizetésről"><img src="/assets/barion-smart-payment.svg" alt="Fizetés Barionnal"></a></fieldset>
-      <label class="terms"><input type="checkbox" required> <span>Elfogadom az ÁSZF-et és az adatkezelési tájékoztatót.</span></label>
-      <p class="no-cancellation-note">Virág rendelése esetén a rendelés leadása után nincs lehetőség lemondásra.</p>
-      <button class="button cancel-disabled full" type="button" disabled>Rendelés lemondása</button>
-      <button class="button button-primary full" type="submit">Rendelés leadása · <span id="checkoutTotal"></span></button>
+      <label class="terms"><input type="checkbox" required> <span>Elfogadom az <a href="#aszf" data-info="aszf">ÁSZF-et</a> és az <a href="#adatvedelem" data-info="privacy">adatkezelési tájékoztatót</a>.</span></label>
+      <p class="no-cancellation-note">Friss virág és egyedileg készített termék esetén az elállási jog korlátozott lehet – részletek az ÁSZF-ben.</p>
+      <button class="button button-primary full" type="submit">Fizetési kötelezettséggel járó megrendelés · <span id="checkoutTotal"></span></button>
       <p class="form-error" id="checkoutError" role="alert"></p>
     </form>
     <div class="order-success" id="orderSuccess" role="status" aria-live="polite" tabindex="-1" hidden><span>✓</span><h3>Rendelésed sikeresen leadva!</h3><p>Köszönjük, rendelésedet rögzítettük.</p><p>Rendelési azonosítód:</p><strong id="orderNumber"></strong><p>Hamarosan felvesszük veled a kapcsolatot az átvétel részleteivel.</p><button class="button button-primary drawer-close">Rendben</button></div>
