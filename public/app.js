@@ -352,7 +352,7 @@ dom.checkoutForm.addEventListener('submit', async event => {
   button.disabled = true; button.innerHTML = `${tr('Rendelés mentése…', 'Placing order…')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0))}</span>`; error.textContent = '';
   const form = new FormData(dom.checkoutForm);
   try {
-    const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), payment: form.get('payment'), invoiceRequested: form.get('invoiceRequested') === 'on', billingName: form.get('billingName'), billingAddress: form.get('billingAddress'), billingTaxNumber: form.get('billingTaxNumber'), items: state.cart }) });
+    const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), payment: form.get('payment'), invoiceRequested: form.get('invoiceRequested') === 'on', electronicInvoiceConsent: form.get('electronicInvoiceConsent') === 'on', billingName: form.get('billingName'), billingAddress: form.get('billingAddress'), billingTaxNumber: form.get('billingTaxNumber'), items: state.cart }) });
     if (response.checkoutUrl) { location.href = response.checkoutUrl; return; }
     state.cart = []; saveCart(); showOrderSuccess(response.orderId);
   } catch (err) { error.textContent = err.message; }

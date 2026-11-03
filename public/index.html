@@ -148,6 +148,7 @@
         <label>Számlázási név<input name="billingName" autocomplete="billing name" data-invoice-required></label>
         <label>Számlázási cím<input name="billingAddress" autocomplete="street-address" data-invoice-required placeholder="Irányítószám, település, utca, házszám"></label>
         <label>Adószám <small>(vállalkozás esetén)</small><input name="billingTaxNumber" autocomplete="off" placeholder="Opcionális magánszemélynek"></label>
+        <label class="electronic-invoice-consent"><input type="checkbox" name="electronicInvoiceConsent" data-invoice-required> <span>Hozzájárulok, hogy a számlát elektronikus számlaként a megadott e-mail-címemre kapjam.</span></label>
       </fieldset>
       <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label><input type="radio" name="payment" value="barion"><span><b>Online bankkártyás fizetés</b><small>Biztonságos fizetés Barionnal</small></span></label><a class="barion-payment-mark" href="https://www.barion.com/hu/" target="_blank" rel="noopener noreferrer" aria-label="További információ a Barion fizetésről"><img src="/assets/barion-smart-payment.svg" alt="Fizetés Barionnal"></a></fieldset>
       <label class="terms"><input type="checkbox" required> <span>Elfogadom az <a href="#aszf" data-info="aszf">ÁSZF-et</a> és az <a href="#adatvedelem" data-info="privacy">adatkezelési tájékoztatót</a>.</span></label>
