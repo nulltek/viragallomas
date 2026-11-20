@@ -57,7 +57,7 @@ const localized = value => state.language === 'en' ? (catalogTranslations[value]
 
 const state = {
   language: localStorage.getItem('va_language') === 'en' ? 'en' : 'hu',
-  catalog: { products: [], categories: [], colors: [], openingHours: [] },
+  catalog: { products: [], categories: [], colors: [], openingHours: [], deliveryFee: 2500 },
   filters: { categories: new Set(), colors: new Set(), search: '', sort: 'featured' },
   cart: JSON.parse(localStorage.getItem('va_cart') || '[]')
 };
@@ -121,7 +121,9 @@ function invoiceOnlyPrivacy(content) {
     .replace('an electronic receipt or invoice.', 'an electronic invoice.')
     .replace('elektronikus nyugta vagy számla', 'elektronikus számla')
     .replace('invoicing and receipt service', 'electronic invoicing service')
-    .replace('számla- és nyugtaállítási szolgáltatást', 'elektronikus számlaállítási szolgáltatást');
+    .replace('számla- és nyugtaállítási szolgáltatást', 'elektronikus számlaállítási szolgáltatást')
+    .replace('No delivery address or card data is requested in the current checkout.', 'For delivery orders, the delivery address and, where different from the buyer, the recipient’s name, email address and phone number are processed to fulfil the order. Delivery is available only within Szeged.')
+    .replace('A jelenlegi pénztár nem kér szállítási címet vagy bankkártyaadatot.', 'Kiszállítási rendelésnél a kiszállítási címet, valamint ha a címzett eltér a megrendelőtől, a címzett nevét, e-mail-címét és telefonszámát a rendelés teljesítéséhez kezeljük. Kiszállítás csak Szeged közigazgatási területén belül érhető el.');
 }
 
 function invoiceOnlyTerms(content) {
@@ -135,7 +137,8 @@ function invoiceOnlyTerms(content) {
     : '<p>A szolgáltató minden kiegyenlített megrendelésről Számlázz.hu-n keresztül elektronikus számlát állít ki, és azt a rendeléskor megadott e-mail-címre küldi. A vásárló a pénztárban köteles a helyes számlázási adatokat megadni és az elektronikus kézbesítést elfogadni. Cég vagy vállalkozás részére kiállított számlához a vásárlónak a cég hivatalos nevét, székhelyét és adószámát kell megadnia. A vásárló felel a helyes, elérhető e-mail-cím és számlázási adatok megadásáért.</p>';
   return content
     .replace(english ? 'Last updated: 3 November 2026' : 'Utolsó frissítés: 2026. november 3.', english ? 'Last updated: 20 November 2026' : 'Utolsó frissítés: 2026. november 20.')
-    .replace(/<h3>4\.[\s\S]*?<h3>5\./, `<h3>${heading}</h3>${payment}${invoice}<h3>5.`);
+    .replace(english ? 'There is no delivery fee because only in-store pickup is available.' : 'Szállítási díj nincs, mert kizárólag személyes átvétel érhető el.', english ? 'Delivery within Szeged is available for a gross fee of 2,500 HUF per order; the fee is included in the order total.' : 'Szeged közigazgatási területén belül kiszállítás is elérhető, rendelésenként bruttó 2 500 Ft díjért; a díj a rendelés végösszegében szerepel.')
+    .replace(/<h3>4\.[\s\S]*?<h3>5\.[\s\S]*?<h3>6\./, `<h3>${heading}</h3>${payment}${invoice}<h3>5. ${english ? 'Fulfilment, pickup and delivery' : 'Teljesítés, átvétel és kiszállítás'}</h3>${english ? '<p>Orders are normally ready for in-store pickup or delivery within <strong>1–2 business days</strong>; the exact time is agreed with the customer. In-store pickup is at 6721 Szeged, Szent Ferenc utca 1. Delivery is available only to addresses within Szeged for a 2,500 HUF fee per order.</p>' : '<p>A rendelések személyes átvételre vagy kiszállításra általában <strong>1–2 munkanapon belül</strong> készülnek el; a pontos időpontról a szolgáltató egyeztet a vásárlóval. Személyes átvétel helye: 6721 Szeged, Szent Ferenc utca 1. Kiszállítás kizárólag Szeged közigazgatási területén belüli címre kérhető, rendelésenként 2 500 Ft díjért.</p>'}<h3>6.`);
 }
 
 async function request(url, options = {}) {
@@ -243,6 +246,11 @@ function addToCart(productId, sizeId, colorId) {
   return true;
 }
 
+function cartSubtotal() { return state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0); }
+function fulfillmentType() { return dom.checkoutForm?.elements.fulfillment?.value || 'pickup'; }
+function deliveryFee() { return fulfillmentType() === 'delivery' ? Number(state.catalog.deliveryFee || 2500) : 0; }
+function orderTotal() { return cartSubtotal() + deliveryFee(); }
+function updateCheckoutTotal() { const total = $('#checkoutTotal'); if (total) total.textContent = money(orderTotal()); }
 function renderCart() {
   state.cart = state.cart.filter(line => productById(line.productId) && colorForLine(line));
   const count = state.cart.reduce((sum, line) => sum + line.quantity, 0);
@@ -256,8 +264,8 @@ function renderCart() {
       <button class="remove-line" aria-label="${tr('Termék eltávolítása', 'Remove item')}">×</button>
     </div>`;
   }).join('');
-  const total = state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0);
-  $('#cartTotal').textContent = money(total); $('#checkoutTotal').textContent = money(total);
+  const total = cartSubtotal();
+  $('#cartTotal').textContent = money(total); updateCheckoutTotal();
   dom.cartEmpty.hidden = state.cart.length > 0;
   dom.cartFooter.hidden = !state.cart.length;
 }
@@ -378,18 +386,37 @@ function updateBillingFields() {
 }
 billingType.addEventListener('change', updateBillingFields);
 updateBillingFields();
+const deliveryDetails = $('#deliveryDetails');
+const recipientDetails = $('#recipientDetails');
+const recipientSame = $('[name=recipientSame]', deliveryDetails);
+function updateDeliveryFields() {
+  const delivery = fulfillmentType() === 'delivery';
+  deliveryDetails.hidden = !delivery;
+  deliveryDetails.disabled = !delivery;
+  $$('[data-delivery-required]', deliveryDetails).forEach(input => input.required = delivery);
+  const separateRecipient = delivery && !recipientSame.checked;
+  recipientDetails.hidden = !separateRecipient;
+  $$('[data-recipient-required]', recipientDetails).forEach(input => {
+    input.required = separateRecipient;
+    if (!separateRecipient) input.value = '';
+  });
+  updateCheckoutTotal();
+}
+$$('[name=fulfillment]', dom.checkoutForm).forEach(input => input.addEventListener('change', updateDeliveryFields));
+recipientSame.addEventListener('change', updateDeliveryFields);
+updateDeliveryFields();
 dom.checkoutForm.addEventListener('submit', async event => {
   event.preventDefault(); const button = $('button[type=submit]', dom.checkoutForm); const error = $('#checkoutError');
   // Keep #checkoutTotal in the button while the request is in progress. renderCart()
   // updates that element after a successful order clears the cart.
-  button.disabled = true; button.innerHTML = `${tr('Rendelés mentése…', 'Placing order…')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0))}</span>`; error.textContent = '';
+  button.disabled = true; button.innerHTML = `${tr('Rendelés mentése…', 'Placing order…')} · <span id="checkoutTotal">${money(orderTotal())}</span>`; error.textContent = '';
   const form = new FormData(dom.checkoutForm);
   try {
-    const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), payment: form.get('payment'), invoiceRequested: true, electronicInvoiceConsent: form.get('electronicInvoiceConsent') === 'on', billingType: form.get('billingType'), billingName: form.get('billingName'), billingAddress: form.get('billingAddress'), billingTaxNumber: form.get('billingTaxNumber'), items: state.cart }) });
+    const response = await request('/api/orders', { method: 'POST', body: JSON.stringify({ name: form.get('name'), email: form.get('email'), phone: form.get('phone'), note: form.get('note'), fulfillment: form.get('fulfillment'), deliveryAddress: form.get('deliveryAddress'), recipientSame: form.get('recipientSame') === 'on', recipientName: form.get('recipientName'), recipientPhone: form.get('recipientPhone'), recipientEmail: form.get('recipientEmail'), payment: form.get('payment'), invoiceRequested: true, electronicInvoiceConsent: form.get('electronicInvoiceConsent') === 'on', billingType: form.get('billingType'), billingName: form.get('billingName'), billingAddress: form.get('billingAddress'), billingTaxNumber: form.get('billingTaxNumber'), items: state.cart }) });
     if (response.checkoutUrl) { location.href = response.checkoutUrl; return; }
     state.cart = []; saveCart(); showOrderSuccess(response.orderId);
   } catch (err) { error.textContent = err.message; }
-  finally { button.disabled = false; button.innerHTML = `${tr('Fizetési kötelezettséggel járó megrendelés', 'Order with obligation to pay')} · <span id="checkoutTotal">${money(state.cart.reduce((sum, line) => sum + sizeForLine(line).price * line.quantity, 0))}</span>`; }
+  finally { button.disabled = false; button.innerHTML = `${tr('Fizetési kötelezettséggel járó megrendelés', 'Order with obligation to pay')} · <span id="checkoutTotal">${money(orderTotal())}</span>`; }
 });
 
 $('#productDialog').addEventListener('change', event => { if (event.target.matches('#productSizeSelect')) $('#selectedSizePrice').textContent = money(Number(event.target.selectedOptions[0].dataset.price)); });

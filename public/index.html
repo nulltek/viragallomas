@@ -138,11 +138,22 @@
     </div>
     <form class="checkout-form" id="checkoutForm" hidden>
       <button type="button" class="back-to-cart">← Vissza a kosárhoz</button>
-      <h3>Átvételi adatok</h3>
+      <h3>Megrendelő adatai</h3>
       <label>Név<input name="name" autocomplete="name" required></label>
       <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
       <label>Telefonszám<input name="phone" type="tel" autocomplete="tel" required></label>
       <label>Megjegyzés <small>(opcionális)</small><textarea name="note" rows="3" placeholder="Például: a csokor köszöntőkártyájának szövege"></textarea></label>
+      <fieldset class="fulfillment-options"><legend>Átvétel vagy kiszállítás</legend><label><input type="radio" name="fulfillment" value="pickup" checked><span><b>Személyes átvétel</b><small>Átvétel üzletünkben: 6721 Szeged, Szent Ferenc utca 1.</small></span></label><label><input type="radio" name="fulfillment" value="delivery"><span><b>Kiszállítás Szegeden</b><small>Csak szegedi címre · 2 500 Ft</small></span></label></fieldset>
+      <fieldset class="delivery-details invoice-details" id="deliveryDetails" hidden disabled>
+        <legend>Kiszállítási adatok</legend>
+        <label>Kiszállítási cím<input name="deliveryAddress" autocomplete="shipping street-address" placeholder="6721 Szeged, Szent Ferenc utca 1." data-delivery-required><small>Csak Szeged közigazgatási területén belüli címre szállítunk.</small></label>
+        <label class="electronic-invoice-consent"><input type="checkbox" name="recipientSame" checked> <span>A címzett megegyezik a megrendelővel.</span></label>
+        <div id="recipientDetails" hidden>
+          <label>A címzett neve<input name="recipientName" autocomplete="name" data-recipient-required></label>
+          <label>A címzett telefonszáma<input name="recipientPhone" type="tel" autocomplete="tel" data-recipient-required></label>
+          <label>A címzett e-mail-címe<input name="recipientEmail" type="email" autocomplete="email" data-recipient-required></label>
+        </div>
+      </fieldset>
       <fieldset class="invoice-details" id="invoiceDetails">
         <legend>Számlázási adatok</legend>
         <p class="invoice-intro">Minden vásárlásról elektronikus számlát küldünk a megadott e-mail-címre.</p>

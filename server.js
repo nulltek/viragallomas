@@ -13,6 +13,7 @@ const BARION_ENV = process.env.BARION_ENV === 'live' ? 'live' : 'sandbox';
 const BARION_API_HOST = BARION_ENV === 'live' ? 'api.barion.com' : 'api.test.barion.com';
 const BARION_PIXEL_ID = /^BP-[A-Za-z0-9]{10}-[A-Za-z0-9]{2}$/.test(process.env.BARION_PIXEL_ID || '') ? process.env.BARION_PIXEL_ID : '';
 const SZAMLAZZ_AGENT_KEY = process.env.SZAMLAZZ_AGENT_KEY || '';
+const DELIVERY_FEE = Math.max(0, Number(process.env.DELIVERY_FEE_HUF || 2500) || 2500);
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessions = new Map();
 const notificationEmail = process.env.ORDER_NOTIFICATION_EMAIL || 'viola32ildiko@gmail.com';
@@ -240,11 +241,11 @@ async function sendNotification({ subject, replyTo, text }) {
 }
 
 function orderNotification(order) {
-  const lines = order.items.map(item => `${item.quantity} × ${item.name} (${item.sizeName}${item.colorName ? `, ${item.colorName}` : ''}) — ${item.price * item.quantity} Ft`).join('\n');
+  const lines = order.items.map(item => `${item.quantity} × ${item.name}${item.sizeName ? ` (${item.sizeName}${item.colorName ? `, ${item.colorName}` : ''})` : ''} — ${item.price * item.quantity} Ft`).join('\n');
   return sendNotification({
     subject: `Új webshop rendelés: ${order.id}`,
     replyTo: order.customer.email,
-    text: `Új webshop rendelés érkezett.\n\nAzonosító: ${order.id}\nNév: ${order.customer.name}\nE-mail: ${order.customer.email}\nTelefon: ${order.customer.phone}\nFizetés: ${order.payment === 'barion' ? 'Barion online fizetés' : 'Készpénz az üzletben'}\nÁtvétel: Személyes átvétel\n\nTermékek:\n${lines}\n\nÖsszesen: ${order.total} Ft\nMegjegyzés: ${order.note || '—'}\n\nMegnyitás az adminban: ${PUBLIC_URL}/admin`
+    text: `Új webshop rendelés érkezett.\n\nAzonosító: ${order.id}\nNév: ${order.customer.name}\nE-mail: ${order.customer.email}\nTelefon: ${order.customer.phone}\nFizetés: ${order.payment === 'barion' ? 'Barion online fizetés' : 'Készpénz az üzletben'}\nTeljesítés: ${order.pickup}${order.delivery ? `\nKiszállítási cím: ${order.delivery.address}\nCímzett: ${order.delivery.recipient.name}\nCímzett telefon: ${order.delivery.recipient.phone}\nCímzett e-mail: ${order.delivery.recipient.email}` : ''}\n\nTermékek:\n${lines}\n\nÖsszesen: ${order.total} Ft\nMegjegyzés: ${order.note || '—'}\n\nMegnyitás az adminban: ${PUBLIC_URL}/admin`
   });
 }
 
@@ -261,7 +262,8 @@ function publicCatalog(store) {
     categories: store.categories,
     colors: store.colors,
     products: store.products.filter(p => p.active !== false),
-    openingHours: store.openingHours
+    openingHours: store.openingHours,
+    deliveryFee: DELIVERY_FEE
   };
 }
 
@@ -357,7 +359,7 @@ function szamlazzInvoice(order) {
   const match = String(order.invoice.billingAddress || '').match(/^\s*(\d{4})\s+([^,]+),?\s+(.+)$/);
   if (!match) { order.invoice.status = 'error'; order.invoice.error = 'A számlázási cím formátuma legyen: 6721 Szeged, Utca 1.'; return Promise.resolve(order); }
   const date = new Date(order.paidAt || now()).toISOString().slice(0, 10);
-  const lines = order.items.map(item => `<tetel><megnevezes>${xml(item.name)} (${xml(item.sizeName)}${item.colorName ? `, ${xml(item.colorName)}` : ''})</megnevezes><azonosito>${xml(item.productId)}</azonosito><mennyiseg>${Number(item.quantity)}</mennyiseg><mennyisegiEgyseg>db</mennyisegiEgyseg><nettoEgysegar>${Number(item.price)}</nettoEgysegar><afakulcs>AAM</afakulcs><nettoErtek>${Number(item.price) * Number(item.quantity)}</nettoErtek><afaErtek>0</afaErtek><bruttoErtek>${Number(item.price) * Number(item.quantity)}</bruttoErtek></tetel>`).join('');
+  const lines = order.items.map(item => `<tetel><megnevezes>${xml(item.name)}${item.sizeName ? ` (${xml(item.sizeName)}${item.colorName ? `, ${xml(item.colorName)}` : ''})` : ''}</megnevezes><azonosito>${xml(item.productId)}</azonosito><mennyiseg>${Number(item.quantity)}</mennyiseg><mennyisegiEgyseg>db</mennyisegiEgyseg><nettoEgysegar>${Number(item.price)}</nettoEgysegar><afakulcs>AAM</afakulcs><nettoErtek>${Number(item.price) * Number(item.quantity)}</nettoErtek><afaErtek>0</afaErtek><bruttoErtek>${Number(item.price) * Number(item.quantity)}</bruttoErtek></tetel>`).join('');
   const paymentMethod = order.payment === 'cash' ? 'készpénz' : 'Barion';
   const body = `<?xml version="1.0" encoding="UTF-8"?><xmlszamla xmlns="http://www.szamlazz.hu/xmlszamla"><beallitasok><szamlaagentkulcs>${xml(SZAMLAZZ_AGENT_KEY)}</szamlaagentkulcs><eszamla>true</eszamla><szamlaLetoltes>false</szamlaLetoltes><valaszVerzio>2</valaszVerzio><szamlaKulsoAzon>${xml(order.id)}</szamlaKulsoAzon></beallitasok><fejlec><keltDatum>${date}</keltDatum><teljesitesDatum>${date}</teljesitesDatum><fizetesiHataridoDatum>${date}</fizetesiHataridoDatum><fizmod>${paymentMethod}</fizmod><penznem>HUF</penznem><szamlaNyelve>hu</szamlaNyelve><rendelesSzam>${xml(order.id)}</rendelesSzam><fizetve>true</fizetve></fejlec><elado><emailTargy>Elektronikus számla – Virág Állomás</emailTargy><emailSzoveg>Köszönjük a rendelésedet. Mellékeljük az elektronikus számlát.</emailSzoveg></elado><vevo><nev>${xml(order.invoice.billingName)}</nev><orszag>Magyarország</orszag><irsz>${xml(match[1])}</irsz><telepules>${xml(match[2].trim())}</telepules><cim>${xml(match[3].trim())}</cim><email>${xml(order.customer.email)}</email><sendEmail>true</sendEmail>${order.invoice.billingTaxNumber ? `<adoalany>1</adoalany><adoszam>${xml(order.invoice.billingTaxNumber)}</adoszam>` : '<adoalany>-1</adoalany>'}</vevo><tetelek>${lines}</tetelek></xmlszamla>`;
   return szamlazzRequest('action-szamla_agent_generate', 'invoice.xml', body).then(result => {
@@ -441,6 +443,10 @@ async function api(req, res, url) {
   if (pathname === '/api/orders' && method === 'POST') {
     const name = cleanText(body.name, 100), email = cleanText(body.email, 180), phone = cleanText(body.phone, 40);
     const payment = body.payment === 'barion' ? 'barion' : 'cash';
+    const fulfillment = body.fulfillment === 'delivery' ? 'delivery' : 'pickup';
+    const deliveryAddress = cleanText(body.deliveryAddress, 300);
+    const recipientSame = body.recipientSame !== false;
+    const recipientName = cleanText(body.recipientName, 100), recipientEmail = cleanText(body.recipientEmail, 180), recipientPhone = cleanText(body.recipientPhone, 40);
     const invoiceRequested = true;
     const electronicInvoiceConsent = body.electronicInvoiceConsent === true;
     const billingType = body.billingType === 'company' ? 'company' : 'private';
@@ -449,6 +455,8 @@ async function api(req, res, url) {
     if (!billingName || !billingAddress) return json(res, 400, { error: 'Az elektronikus számlához add meg a számlázási nevet és címet.' });
     if (billingType === 'company' && billingTaxNumber.length < 8) return json(res, 400, { error: 'Cég vagy vállalkozás számlázásához add meg az adószámot.' });
     if (!electronicInvoiceConsent) return json(res, 400, { error: 'Az elektronikus számla e-mailes kézbesítését el kell fogadnod.' });
+    if (fulfillment === 'delivery' && !/(^|[\s,])szeged([\s,]|$)/i.test(deliveryAddress)) return json(res, 400, { error: 'Kiszállítás csak Szeged közigazgatási területén belüli címre kérhető.' });
+    if (fulfillment === 'delivery' && !recipientSame && (!recipientName || !/^\S+@\S+\.\S+$/.test(recipientEmail) || recipientPhone.length < 6)) return json(res, 400, { error: 'Add meg a címzett nevét, e-mail-címét és telefonszámát.' });
     if (payment === 'barion' && (!process.env.BARION_POS_KEY || !process.env.BARION_PAYEE_EMAIL)) return json(res, 503, { error: 'A Barion fizetés még nincs konfigurálva. Válaszd a helyszíni készpénzes fizetést.' });
     const items = [];
     let total = 0;
@@ -463,7 +471,14 @@ async function api(req, res, url) {
       items.push({ productId: product.id, name: product.name, sizeId: size.id, sizeName: size.name, colorId: color.id, colorName: color.name, price: size.price, quantity, image: product.images?.[0] || '' });
       total += size.price * quantity;
     }
-    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, invoice: { requested: invoiceRequested, electronicConsent: electronicInvoiceConsent, billingType, billingName, billingAddress, billingTaxNumber, status: 'pending_payment' }, note: cleanText(body.note, 600), items, total };
+    let delivery;
+    if (fulfillment === 'delivery') {
+      const recipient = recipientSame ? { name, email, phone } : { name: recipientName, email: recipientEmail, phone: recipientPhone };
+      items.push({ productId: 'delivery-szeged', name: 'Kiszállítás Szegeden', sizeId: '', sizeName: '', colorId: '', colorName: '', price: DELIVERY_FEE, quantity: 1, image: '' });
+      total += DELIVERY_FEE;
+      delivery = { address: deliveryAddress, fee: DELIVERY_FEE, recipientSame, recipient };
+    }
+    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: fulfillment === 'delivery' ? 'Kiszállítás Szegeden' : 'Személyes átvétel', delivery, customer: { name, email, phone }, invoice: { requested: invoiceRequested, electronicConsent: electronicInvoiceConsent, billingType, billingName, billingAddress, billingTaxNumber, status: 'pending_payment' }, note: cleanText(body.note, 600), items, total };
     store.orders.unshift(order);
     await saveStore(store);
     await orderNotification(order);
