@@ -13,7 +13,6 @@ const BARION_ENV = process.env.BARION_ENV === 'live' ? 'live' : 'sandbox';
 const BARION_API_HOST = BARION_ENV === 'live' ? 'api.barion.com' : 'api.test.barion.com';
 const BARION_PIXEL_ID = /^BP-[A-Za-z0-9]{10}-[A-Za-z0-9]{2}$/.test(process.env.BARION_PIXEL_ID || '') ? process.env.BARION_PIXEL_ID : '';
 const SZAMLAZZ_AGENT_KEY = process.env.SZAMLAZZ_AGENT_KEY || '';
-const SZAMLAZZ_RECEIPT_PREFIX = (process.env.SZAMLAZZ_RECEIPT_PREFIX || '').trim();
 const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessions = new Map();
 const notificationEmail = process.env.ORDER_NOTIFICATION_EMAIL || 'viola32ildiko@gmail.com';
@@ -359,37 +358,14 @@ function szamlazzInvoice(order) {
   if (!match) { order.invoice.status = 'error'; order.invoice.error = 'A számlázási cím formátuma legyen: 6721 Szeged, Utca 1.'; return Promise.resolve(order); }
   const date = new Date(order.paidAt || now()).toISOString().slice(0, 10);
   const lines = order.items.map(item => `<tetel><megnevezes>${xml(item.name)} (${xml(item.sizeName)}${item.colorName ? `, ${xml(item.colorName)}` : ''})</megnevezes><azonosito>${xml(item.productId)}</azonosito><mennyiseg>${Number(item.quantity)}</mennyiseg><mennyisegiEgyseg>db</mennyisegiEgyseg><nettoEgysegar>${Number(item.price)}</nettoEgysegar><afakulcs>AAM</afakulcs><nettoErtek>${Number(item.price) * Number(item.quantity)}</nettoErtek><afaErtek>0</afaErtek><bruttoErtek>${Number(item.price) * Number(item.quantity)}</bruttoErtek></tetel>`).join('');
-  const body = `<?xml version="1.0" encoding="UTF-8"?><xmlszamla xmlns="http://www.szamlazz.hu/xmlszamla"><beallitasok><szamlaagentkulcs>${xml(SZAMLAZZ_AGENT_KEY)}</szamlaagentkulcs><eszamla>true</eszamla><szamlaLetoltes>false</szamlaLetoltes><valaszVerzio>2</valaszVerzio><szamlaKulsoAzon>${xml(order.id)}</szamlaKulsoAzon></beallitasok><fejlec><keltDatum>${date}</keltDatum><teljesitesDatum>${date}</teljesitesDatum><fizetesiHataridoDatum>${date}</fizetesiHataridoDatum><fizmod>Barion</fizmod><penznem>HUF</penznem><szamlaNyelve>hu</szamlaNyelve><rendelesSzam>${xml(order.id)}</rendelesSzam><fizetve>true</fizetve></fejlec><elado><emailTargy>Elektronikus számla – Virág Állomás</emailTargy><emailSzoveg>Köszönjük a rendelésedet. Mellékeljük az elektronikus számlát.</emailSzoveg></elado><vevo><nev>${xml(order.invoice.billingName)}</nev><orszag>Magyarország</orszag><irsz>${xml(match[1])}</irsz><telepules>${xml(match[2].trim())}</telepules><cim>${xml(match[3].trim())}</cim><email>${xml(order.customer.email)}</email><sendEmail>true</sendEmail>${order.invoice.billingTaxNumber ? `<adoalany>1</adoalany><adoszam>${xml(order.invoice.billingTaxNumber)}</adoszam>` : '<adoalany>-1</adoalany>'}</vevo><tetelek>${lines}</tetelek></xmlszamla>`;
+  const paymentMethod = order.payment === 'cash' ? 'készpénz' : 'Barion';
+  const body = `<?xml version="1.0" encoding="UTF-8"?><xmlszamla xmlns="http://www.szamlazz.hu/xmlszamla"><beallitasok><szamlaagentkulcs>${xml(SZAMLAZZ_AGENT_KEY)}</szamlaagentkulcs><eszamla>true</eszamla><szamlaLetoltes>false</szamlaLetoltes><valaszVerzio>2</valaszVerzio><szamlaKulsoAzon>${xml(order.id)}</szamlaKulsoAzon></beallitasok><fejlec><keltDatum>${date}</keltDatum><teljesitesDatum>${date}</teljesitesDatum><fizetesiHataridoDatum>${date}</fizetesiHataridoDatum><fizmod>${paymentMethod}</fizmod><penznem>HUF</penznem><szamlaNyelve>hu</szamlaNyelve><rendelesSzam>${xml(order.id)}</rendelesSzam><fizetve>true</fizetve></fejlec><elado><emailTargy>Elektronikus számla – Virág Állomás</emailTargy><emailSzoveg>Köszönjük a rendelésedet. Mellékeljük az elektronikus számlát.</emailSzoveg></elado><vevo><nev>${xml(order.invoice.billingName)}</nev><orszag>Magyarország</orszag><irsz>${xml(match[1])}</irsz><telepules>${xml(match[2].trim())}</telepules><cim>${xml(match[3].trim())}</cim><email>${xml(order.customer.email)}</email><sendEmail>true</sendEmail>${order.invoice.billingTaxNumber ? `<adoalany>1</adoalany><adoszam>${xml(order.invoice.billingTaxNumber)}</adoszam>` : '<adoalany>-1</adoalany>'}</vevo><tetelek>${lines}</tetelek></xmlszamla>`;
   return szamlazzRequest('action-szamla_agent_generate', 'invoice.xml', body).then(result => {
     order.invoice.status = 'issued';
     order.invoice.issuedAt = now();
     order.invoice.documentNumber = (result.match(/<szamlaszam>([^<]+)/i) || [])[1] || '';
     return order;
   });
-}
-
-async function szamlazzReceipt(order) {
-  if (order.invoice?.requested || order.receipt?.status === 'emailed') return order;
-  order.receipt = order.receipt || { status: 'pending_configuration' };
-  if (!SZAMLAZZ_AGENT_KEY || !SZAMLAZZ_RECEIPT_PREFIX) return order;
-
-  if (!order.receipt.documentNumber) {
-    const lines = order.items.map(item => {
-      const total = Number(item.price) * Number(item.quantity);
-      return `<tetel><megnevezes>${xml(item.name)} (${xml(item.sizeName)}${item.colorName ? `, ${xml(item.colorName)}` : ''})</megnevezes><azonosito>${xml(item.productId)}</azonosito><mennyiseg>${Number(item.quantity)}</mennyiseg><mennyisegiEgyseg>db</mennyisegiEgyseg><nettoEgysegar>${Number(item.price)}</nettoEgysegar><afakulcs>AAM</afakulcs><netto>${total}</netto><afa>0</afa><brutto>${total}</brutto></tetel>`;
-    }).join('');
-    const body = `<?xml version="1.0" encoding="UTF-8"?><xmlnyugtacreate xmlns="http://www.szamlazz.hu/xmlnyugtacreate"><beallitasok><szamlaagentkulcs>${xml(SZAMLAZZ_AGENT_KEY)}</szamlaagentkulcs><pdfLetoltes>false</pdfLetoltes></beallitasok><fejlec><hivasAzonosito>receipt-${xml(order.id)}</hivasAzonosito><elotag>${xml(SZAMLAZZ_RECEIPT_PREFIX)}</elotag><fizmod>barion</fizmod><penznem>HUF</penznem><megjegyzes>Virág Állomás online rendelés</megjegyzes><rendelesSzam>${xml(order.id)}</rendelesSzam></fejlec><tetelek>${lines}</tetelek><kifizetesek><kifizetes><fizetoeszkoz>barion</fizetoeszkoz><osszeg>${Number(order.total)}</osszeg></kifizetes></kifizetesek></xmlnyugtacreate>`;
-    const result = await szamlazzRequest('action-szamla_agent_nyugta_create', 'receipt.xml', body);
-    const documentNumber = (result.match(/<nyugtaszam>([^<]+)/i) || [])[1] || '';
-    if (!documentNumber) throw new Error('A Számlázz.hu nem adott vissza nyugtaszámot.');
-    order.receipt = { status: 'issued', documentNumber, issuedAt: now() };
-  }
-
-  const sendBody = `<?xml version="1.0" encoding="UTF-8"?><xmlnyugtasend xmlns="http://www.szamlazz.hu/xmlnyugtasend"><beallitasok><szamlaagentkulcs>${xml(SZAMLAZZ_AGENT_KEY)}</szamlaagentkulcs></beallitasok><fejlec><nyugtaszam>${xml(order.receipt.documentNumber)}</nyugtaszam></fejlec><emailKuldes><email>${xml(order.customer.email)}</email><emailReplyto>${xml(notificationEmail)}</emailReplyto><emailTargy>Nyugta – Virág Állomás</emailTargy><emailSzoveg>Köszönjük a rendelésedet. Mellékeljük a nyugtát.</emailSzoveg></emailKuldes></xmlnyugtasend>`;
-  await szamlazzRequest('action-szamla_agent_nyugta_send', 'receipt-send.xml', sendBody);
-  order.receipt.status = 'emailed';
-  order.receipt.emailedAt = now();
-  return order;
 }
 
 async function refreshBarionOrder(store, order, paymentId = order.barionPaymentId) {
@@ -405,8 +381,6 @@ async function refreshBarionOrder(store, order, paymentId = order.barionPaymentI
     order.paidAt = order.paidAt || now();
     if (order.invoice?.requested) {
       try { await szamlazzInvoice(order); } catch (error) { order.invoice = { ...(order.invoice || {}), status: 'error', error: error.message }; }
-    } else {
-      try { await szamlazzReceipt(order); } catch (error) { order.receipt = { ...(order.receipt || {}), status: 'error', error: error.message }; }
     }
   } else if (['Canceled', 'Expired', 'Failed'].includes(payment.PaymentStatus)) {
     order.status = 'payment_error';
@@ -467,12 +441,14 @@ async function api(req, res, url) {
   if (pathname === '/api/orders' && method === 'POST') {
     const name = cleanText(body.name, 100), email = cleanText(body.email, 180), phone = cleanText(body.phone, 40);
     const payment = body.payment === 'barion' ? 'barion' : 'cash';
-    const invoiceRequested = body.invoiceRequested === true;
+    const invoiceRequested = true;
     const electronicInvoiceConsent = body.electronicInvoiceConsent === true;
+    const billingType = body.billingType === 'company' ? 'company' : 'private';
     const billingName = cleanText(body.billingName, 160), billingAddress = cleanText(body.billingAddress, 300), billingTaxNumber = cleanText(body.billingTaxNumber, 40);
     if (!name || !/^\S+@\S+\.\S+$/.test(email) || phone.length < 6 || !Array.isArray(body.items) || !body.items.length) return json(res, 400, { error: 'Kérjük, tölts ki minden adatot és ellenőrizd a kosarat.' });
-    if (invoiceRequested && (!billingName || !billingAddress)) return json(res, 400, { error: 'Számlaigényléshez add meg a számlázási nevet és címet.' });
-    if (invoiceRequested && !electronicInvoiceConsent) return json(res, 400, { error: 'Elektronikus számlához szükséges az e-mailes kézbesítés elfogadása.' });
+    if (!billingName || !billingAddress) return json(res, 400, { error: 'Az elektronikus számlához add meg a számlázási nevet és címet.' });
+    if (billingType === 'company' && billingTaxNumber.length < 8) return json(res, 400, { error: 'Cég vagy vállalkozás számlázásához add meg az adószámot.' });
+    if (!electronicInvoiceConsent) return json(res, 400, { error: 'Az elektronikus számla e-mailes kézbesítését el kell fogadnod.' });
     if (payment === 'barion' && (!process.env.BARION_POS_KEY || !process.env.BARION_PAYEE_EMAIL)) return json(res, 503, { error: 'A Barion fizetés még nincs konfigurálva. Válaszd a helyszíni készpénzes fizetést.' });
     const items = [];
     let total = 0;
@@ -487,7 +463,7 @@ async function api(req, res, url) {
       items.push({ productId: product.id, name: product.name, sizeId: size.id, sizeName: size.name, colorId: color.id, colorName: color.name, price: size.price, quantity, image: product.images?.[0] || '' });
       total += size.price * quantity;
     }
-    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, invoice: { requested: invoiceRequested, electronicConsent: electronicInvoiceConsent, billingName, billingAddress, billingTaxNumber, status: invoiceRequested ? 'pending_configuration' : 'not_requested' }, receipt: invoiceRequested ? undefined : { status: 'pending_payment' }, note: cleanText(body.note, 600), items, total };
+    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: 'Személyes átvétel', customer: { name, email, phone }, invoice: { requested: invoiceRequested, electronicConsent: electronicInvoiceConsent, billingType, billingName, billingAddress, billingTaxNumber, status: 'pending_payment' }, note: cleanText(body.note, 600), items, total };
     store.orders.unshift(order);
     await saveStore(store);
     await orderNotification(order);
@@ -607,7 +583,14 @@ async function api(req, res, url) {
     if (!order) return json(res, 404, { error: 'A rendelés nem található.' });
     const allowed = ['new', 'awaiting_payment', 'paid', 'preparing', 'ready', 'completed', 'cancelled', 'payment_error'];
     if (!allowed.includes(body.status)) return json(res, 400, { error: 'Érvénytelen állapot.' });
-    order.status = body.status; order.updatedAt = now(); await saveStore(store); return json(res, 200, order);
+    order.status = body.status;
+    if (body.status === 'paid') {
+      order.paidAt = order.paidAt || now();
+      if (order.invoice?.requested) {
+        try { await szamlazzInvoice(order); } catch (error) { order.invoice = { ...(order.invoice || {}), status: 'error', error: error.message }; }
+      }
+    }
+    order.updatedAt = now(); await saveStore(store); return json(res, 200, order);
   }
 
   const customOrderMatch = pathname.match(/^\/api\/admin\/custom-orders\/([^/]+)$/);

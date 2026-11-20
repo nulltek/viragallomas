@@ -143,13 +143,14 @@
       <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
       <label>Telefonszám<input name="phone" type="tel" autocomplete="tel" required></label>
       <label>Megjegyzés <small>(opcionális)</small><textarea name="note" rows="3" placeholder="Például: a csokor köszöntőkártyájának szövege"></textarea></label>
-      <label class="invoice-request"><input type="checkbox" name="invoiceRequested" id="invoiceRequested"> <span><b>Számlát kérek</b><small>Számlázási adatokat csak számlaigénylés esetén kérünk.</small></span></label>
-      <fieldset class="invoice-details" id="invoiceDetails" hidden disabled>
+      <fieldset class="invoice-details" id="invoiceDetails">
         <legend>Számlázási adatok</legend>
-        <label>Számlázási név<input name="billingName" autocomplete="billing name" data-invoice-required></label>
-        <label>Számlázási cím<input name="billingAddress" autocomplete="street-address" data-invoice-required placeholder="Irányítószám, település, utca, házszám"></label>
-        <label>Adószám <small>(vállalkozás esetén)</small><input name="billingTaxNumber" autocomplete="off" placeholder="Opcionális magánszemélynek"></label>
-        <label class="electronic-invoice-consent"><input type="checkbox" name="electronicInvoiceConsent" data-invoice-required> <span>Hozzájárulok, hogy a számlát elektronikus számlaként a megadott e-mail-címemre kapjam.</span></label>
+        <p class="invoice-intro">Minden vásárlásról elektronikus számlát küldünk a megadott e-mail-címre.</p>
+        <label>Számla típusa<select name="billingType" id="billingType"><option value="private">Magánszemély</option><option value="company">Cég / vállalkozás</option></select></label>
+        <label id="billingNameLabel">Név<input name="billingName" autocomplete="name" required></label>
+        <label>Számlázási cím<input name="billingAddress" autocomplete="street-address" required placeholder="6721 Szeged, Szent Ferenc utca 1."><small>Irányítószám, település, utca és házszám.</small></label>
+        <label id="billingTaxNumberLabel" hidden>Adószám<input name="billingTaxNumber" autocomplete="off" inputmode="numeric" placeholder="12345678-1-23"><small>Cég vagy vállalkozás számlázásához kötelező.</small></label>
+        <label class="electronic-invoice-consent"><input type="checkbox" name="electronicInvoiceConsent" required> <span>Tudomásul veszem és elfogadom, hogy a számlát elektronikus számlaként a megadott e-mail-címemre kapom.</span></label>
       </fieldset>
       <fieldset class="payment-options"><legend>Fizetés</legend><label><input type="radio" name="payment" value="cash" checked><span><b>Fizetés átvételkor</b><small>Készpénzzel az üzletben</small></span></label><label><input type="radio" name="payment" value="barion"><span><b>Online bankkártyás fizetés</b><small>Biztonságos fizetés Barionnal</small></span></label><a class="barion-payment-mark" href="https://www.barion.com/hu/" target="_blank" rel="noopener noreferrer" aria-label="További információ a Barion fizetésről"><img src="/assets/barion-smart-payment.svg" alt="Fizetés Barionnal"></a></fieldset>
       <label class="terms"><input type="checkbox" required> <span>Elfogadom az <a href="#aszf" data-info="aszf">ÁSZF-et</a> és az <a href="#adatvedelem" data-info="privacy">adatkezelési tájékoztatót</a>.</span></label>
