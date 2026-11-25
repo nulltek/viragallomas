@@ -347,8 +347,12 @@ function szamlazzRequest(action, documentName, body) {
         const result = Buffer.concat(chunks).toString('utf8');
         const successful = /<sikeres>\s*true\s*<\/sikeres>/i.test(result);
         if (response.statusCode >= 300 || !successful) {
-          const message = (result.match(/<hibauzenet>([\s\S]*?)<\/hibauzenet>/i) || [])[1] || result.slice(0, 500) || 'A Számlázz.hu kérést elutasította.';
-          return reject(new Error(message.replace(/<[^>]+>/g, '').trim()));
+          const rawMessage = (result.match(/<hibauzenet>([\s\S]*?)<\/hibauzenet>/i) || [])[1] || '';
+          const code = (result.match(/<hibakod>([^<]+)<\/hibakod>/i) || [])[1] || response.headers['szlahu_error_code'] || '';
+          let headerMessage = String(response.headers['szlahu_error'] || '');
+          try { headerMessage = decodeURIComponent(headerMessage.replace(/\+/g, ' ')); } catch {}
+          const message = rawMessage.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').trim() || headerMessage.trim() || `A Számlázz.hu nem adott részletes hibaüzenetet (HTTP ${response.statusCode}).`;
+          return reject(new Error(`${code ? `Hibakód: ${code}. ` : ''}${message}`));
         }
         resolve(result);
       });
