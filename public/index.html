@@ -159,7 +159,9 @@
         <p class="invoice-intro">Minden vásárlásról elektronikus számlát küldünk a megadott e-mail-címre.</p>
         <label>Számla típusa<select name="billingType" id="billingType"><option value="private">Magánszemély</option><option value="company">Cég / vállalkozás</option></select></label>
         <label id="billingNameLabel">Név<input name="billingName" autocomplete="name" required></label>
-        <label>Számlázási cím<input name="billingAddress" autocomplete="street-address" required placeholder="6721 Szeged, Szent Ferenc utca 1."><small>Irányítószám, település, utca és házszám.</small></label>
+        <label>Irányítószám<input name="billingPostcode" autocomplete="billing postal-code" inputmode="numeric" pattern="[0-9]{4}" required></label>
+        <label>Település<input name="billingCity" autocomplete="billing address-level2" required></label>
+        <label>Utca és házszám<input name="billingStreet" autocomplete="billing street-address" required></label>
         <label id="billingTaxNumberLabel" hidden>Adószám<input name="billingTaxNumber" autocomplete="off" inputmode="numeric" placeholder="12345678-1-23"><small>Cég vagy vállalkozás számlázásához kötelező.</small></label>
         <label class="electronic-invoice-consent"><input type="checkbox" name="electronicInvoiceConsent" required> <span>Tudomásul veszem és elfogadom, hogy a számlát elektronikus számlaként a megadott e-mail-címemre kapom.</span></label>
       </fieldset>

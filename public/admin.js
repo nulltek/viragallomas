@@ -84,6 +84,7 @@ function openOrderDetails(orderId) {
     </div>
     ${order.delivery ? `<div class="order-note"><span>Kiszállítás Szegeden · ${money(order.delivery.fee || 0)}</span><strong>${esc(order.delivery.address)}</strong><br><small>Címzett: ${esc(order.delivery.recipient?.name || '—')} · ${esc(order.delivery.recipient?.phone || '—')} · ${esc(order.delivery.recipient?.email || '—')}</small></div>` : ''}
     ${order.invoice?.requested ? `<div class="order-note"><span>Elektronikus számla</span><strong>${esc(order.invoice.billingName)}</strong><br>${esc(order.invoice.billingAddress)}${order.invoice.billingTaxNumber ? `<br>Adószám: ${esc(order.invoice.billingTaxNumber)}` : ''}<br><small>Számlázás állapota: ${esc(order.invoice.status || 'függőben')}${order.invoice.documentNumber ? ` · ${esc(order.invoice.documentNumber)}` : ''}${order.invoice.error ? ` · ${esc(order.invoice.error)}` : ''}</small></div>` : `<div class="order-note"><span>Nyugta</span><small>Állapot: ${esc(order.receipt?.status || 'függőben')}${order.receipt?.documentNumber ? ` · ${esc(order.receipt.documentNumber)}` : ''}${order.receipt?.emailedAt ? ' · e-mailben elküldve' : ''}${order.receipt?.error ? ` · ${esc(order.receipt.error)}` : ''}</small></div>`}
+    ${order.invoice?.requested && order.invoice.status !== 'issued' ? `<form id="billingAddressEdit" data-order-id="${esc(order.id)}"><p>Számlázási cím javítása</p><label>Irányítószám <input name="billingPostcode" pattern="[0-9]{4}" value="${esc(order.invoice.billingPostcode || '')}" required></label><label>Település <input name="billingCity" value="${esc(order.invoice.billingCity || '')}" required></label><label>Utca és házszám <input name="billingStreet" value="${esc(order.invoice.billingStreet || '')}" required></label><button type="submit">Cím mentése</button></form>` : ''}
     ${order.paymentError ? `<div class="order-note"><span>Barion hiba</span><small>${esc(order.paymentError)}</small></div>` : ''}
     ${order.note ? `<div class="order-note"><span>Vásárlói leírás / megjegyzés</span>${esc(order.note)}</div>` : ''}
     <h3 class="order-detail-section-title">Rendelt termékek</h3>
@@ -258,6 +259,16 @@ $('#recentOrders').addEventListener('click', event => {
 
 $('#orderDetailsDialog').addEventListener('click', event => {
   if (event.target === $('#orderDetailsDialog') || event.target.closest('.dialog-close')) $('#orderDetailsDialog').close();
+});
+$('#orderDetailsDialog').addEventListener('submit', async event => {
+  if (event.target.id !== 'billingAddressEdit') return;
+  event.preventDefault();
+  const form = event.target, data = new FormData(form), button = $('button[type=submit]', form);
+  button.disabled = true;
+  try {
+    await request(`/api/admin/orders/${encodeURIComponent(form.dataset.orderId)}/billing-address`, { method: 'PUT', body: JSON.stringify({ billingPostcode: data.get('billingPostcode'), billingCity: data.get('billingCity'), billingStreet: data.get('billingStreet') }) });
+    await loadData(); openOrderDetails(form.dataset.orderId); toast('Számlázási cím mentve.');
+  } catch (error) { toast(error.message); button.disabled = false; }
 });
 $('#sizeOptions').addEventListener('click', event => {
   const row = event.target.closest('.size-option-row');

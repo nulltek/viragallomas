@@ -361,8 +361,9 @@ function szamlazzRequest(action, documentName, body) {
 
 function szamlazzInvoice(order) {
   if (!SZAMLAZZ_AGENT_KEY || !order.invoice?.requested || !order.invoice?.electronicConsent || order.invoice.status === 'issued') return Promise.resolve(order);
-  const match = String(order.invoice.billingAddress || '').match(/^\s*(\d{4})\s+([^,]+),?\s+(.+)$/);
-  if (!match) { order.invoice.status = 'error'; order.invoice.error = 'A számlázási cím formátuma legyen: 6721 Szeged, Utca 1.'; return Promise.resolve(order); }
+  const legacy = String(order.invoice.billingAddress || '').match(/^\s*(\d{4})\s+([^,]+),\s*(.+)$/);
+  const match = order.invoice.billingPostcode && order.invoice.billingCity && order.invoice.billingStreet ? [null, order.invoice.billingPostcode, order.invoice.billingCity, order.invoice.billingStreet] : legacy;
+  if (!match) { order.invoice.status = 'error'; order.invoice.error = 'A számlázási cím irányítószámát, települését és utca/házszámát külön kell megadni.'; return Promise.resolve(order); }
   const date = new Date(order.paidAt || now()).toISOString().slice(0, 10);
   const lines = order.items.map(item => `<tetel><megnevezes>${xml(item.name)}${item.sizeName ? ` (${xml(item.sizeName)}${item.colorName ? `, ${xml(item.colorName)}` : ''})` : ''}</megnevezes><azonosito>${xml(item.productId)}</azonosito><mennyiseg>${Number(item.quantity)}</mennyiseg><mennyisegiEgyseg>db</mennyisegiEgyseg><nettoEgysegar>${Number(item.price)}</nettoEgysegar><afakulcs>AAM</afakulcs><nettoErtek>${Number(item.price) * Number(item.quantity)}</nettoErtek><afaErtek>0</afaErtek><bruttoErtek>${Number(item.price) * Number(item.quantity)}</bruttoErtek></tetel>`).join('');
   const paymentMethod = order.payment === 'cash' ? 'készpénz' : 'Barion';
@@ -456,9 +457,10 @@ async function api(req, res, url) {
     const invoiceRequested = true;
     const electronicInvoiceConsent = body.electronicInvoiceConsent === true;
     const billingType = body.billingType === 'company' ? 'company' : 'private';
-    const billingName = cleanText(body.billingName, 160), billingAddress = cleanText(body.billingAddress, 300), billingTaxNumber = cleanText(body.billingTaxNumber, 40);
+    const billingName = cleanText(body.billingName, 160), billingPostcode = cleanText(body.billingPostcode, 10), billingCity = cleanText(body.billingCity, 100), billingStreet = cleanText(body.billingStreet, 200), billingTaxNumber = cleanText(body.billingTaxNumber, 40);
+    const billingAddress = `${billingPostcode} ${billingCity}, ${billingStreet}`;
     if (!name || !/^\S+@\S+\.\S+$/.test(email) || phone.length < 6 || !Array.isArray(body.items) || !body.items.length) return json(res, 400, { error: 'Kérjük, tölts ki minden adatot és ellenőrizd a kosarat.' });
-    if (!billingName || !billingAddress) return json(res, 400, { error: 'Az elektronikus számlához add meg a számlázási nevet és címet.' });
+    if (!billingName || !/^\d{4}$/.test(billingPostcode) || !billingCity || !billingStreet) return json(res, 400, { error: 'Add meg a számlázási nevet, a négyjegyű irányítószámot, a települést és az utcát, házszámot.' });
     if (billingType === 'company' && billingTaxNumber.length < 8) return json(res, 400, { error: 'Cég vagy vállalkozás számlázásához add meg az adószámot.' });
     if (!electronicInvoiceConsent) return json(res, 400, { error: 'Az elektronikus számla e-mailes kézbesítését el kell fogadnod.' });
     if (fulfillment === 'delivery' && !/(^|[\s,])szeged([\s,]|$)/i.test(deliveryAddress)) return json(res, 400, { error: 'Kiszállítás csak Szeged közigazgatási területén belüli címre kérhető.' });
@@ -484,7 +486,7 @@ async function api(req, res, url) {
       total += DELIVERY_FEE;
       delivery = { address: deliveryAddress, fee: DELIVERY_FEE, recipientSame, recipient };
     }
-    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: fulfillment === 'delivery' ? 'Kiszállítás Szegeden' : 'Személyes átvétel', delivery, customer: { name, email, phone }, invoice: { requested: invoiceRequested, electronicConsent: electronicInvoiceConsent, billingType, billingName, billingAddress, billingTaxNumber, status: 'pending_payment' }, note: cleanText(body.note, 600), items, total };
+    const order = { id: uid('VA-').toUpperCase(), createdAt: now(), updatedAt: now(), status: payment === 'cash' ? 'new' : 'awaiting_payment', payment, pickup: fulfillment === 'delivery' ? 'Kiszállítás Szegeden' : 'Személyes átvétel', delivery, customer: { name, email, phone }, invoice: { requested: invoiceRequested, electronicConsent: electronicInvoiceConsent, billingType, billingName, billingPostcode, billingCity, billingStreet, billingAddress, billingTaxNumber, status: 'pending_payment' }, note: cleanText(body.note, 600), items, total };
     store.orders.unshift(order);
     await saveStore(store);
     await orderNotification(order);
@@ -599,6 +601,18 @@ async function api(req, res, url) {
     }
   }
 
+  const billingMatch = pathname.match(/^\/api\/admin\/orders\/([^/]+)\/billing-address$/);
+  if (billingMatch && method === 'PUT') {
+    const order = store.orders.find(o => o.id === decodeURIComponent(billingMatch[1]));
+    if (!order?.invoice?.requested) return json(res, 404, { error: 'A számlázandó rendelés nem található.' });
+    if (order.invoice.status === 'issued') return json(res, 409, { error: 'A már kiállított számla adatai itt nem módosíthatók.' });
+    const billingPostcode = cleanText(body.billingPostcode, 10), billingCity = cleanText(body.billingCity, 100), billingStreet = cleanText(body.billingStreet, 200);
+    if (!/^\d{4}$/.test(billingPostcode) || !billingCity || !billingStreet) return json(res, 400, { error: 'Add meg a négyjegyű irányítószámot, települést és utcát, házszámot.' });
+    Object.assign(order.invoice, { billingPostcode, billingCity, billingStreet, billingAddress: `${billingPostcode} ${billingCity}, ${billingStreet}` });
+    delete order.invoice.error;
+    order.invoice.status = order.paidAt ? 'pending_configuration' : 'pending_payment';
+    order.updatedAt = now(); await saveStore(store); return json(res, 200, order);
+  }
   const orderMatch = pathname.match(/^\/api\/admin\/orders\/([^/]+)$/);
   if (orderMatch && method === 'PUT') {
     const order = store.orders.find(o => o.id === decodeURIComponent(orderMatch[1]));
