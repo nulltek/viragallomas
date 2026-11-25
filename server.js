@@ -384,7 +384,7 @@ async function refreshBarionOrder(store, order, paymentId = order.barionPaymentI
   order.barionStatus = payment.Status;
   order.updatedAt = now();
   if (payment.Status === 'Succeeded') {
-    order.status = 'paid';
+    if (['new', 'awaiting_payment', 'payment_error'].includes(order.status)) order.status = 'paid';
     order.paidAt = order.paidAt || now();
     if (order.invoice?.requested) {
       try { await szamlazzInvoice(order); } catch (error) { order.invoice = { ...(order.invoice || {}), status: 'error', error: error.message }; }
@@ -606,6 +606,8 @@ async function api(req, res, url) {
     const allowed = ['new', 'awaiting_payment', 'paid', 'preparing', 'ready', 'completed', 'cancelled', 'payment_error'];
     if (!allowed.includes(body.status)) return json(res, 400, { error: 'Érvénytelen állapot.' });
     order.status = body.status;
+    order.updatedAt = now();
+    await saveStore(store);
     if (body.status === 'paid') {
       order.paidAt = order.paidAt || now();
       if (order.invoice?.requested) {
