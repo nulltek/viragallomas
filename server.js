@@ -220,7 +220,7 @@ function cleanText(value, max = 500) {
   return String(value || '').trim().slice(0, max);
 }
 
-async function sendNotification({ subject, replyTo, text }) {
+async function sendNotification({ subject, replyTo, text, to = notificationEmail }) {
   if (!mailTransport) {
     console.log('Rendelési e-mail nincs konfigurálva; a rendelés az admin felületen elérhető.');
     return false;
@@ -228,7 +228,7 @@ async function sendNotification({ subject, replyTo, text }) {
   try {
     await mailTransport.sendMail({
       from: `Virág Állomás webshop <${process.env.SMTP_USER}>`,
-      to: notificationEmail,
+      to,
       replyTo,
       subject,
       text
@@ -238,6 +238,11 @@ async function sendNotification({ subject, replyTo, text }) {
     console.error('A rendelési értesítő e-mail küldése sikertelen:', error.message);
     return false;
   }
+}
+
+async function customerConfirmation(order) {
+  const lines = order.items.map(item => `${item.quantity} × ${item.name} — ${item.price * item.quantity} Ft`).join('\n');
+  return sendNotification({ to: order.customer.email, replyTo: notificationEmail, subject: `Rendelés visszaigazolása: ${order.id}`, text: `Kedves ${order.customer.name}!\n\nRendelésedet rögzítettük. Rendelési azonosítód: ${order.id}\n\n${lines}\n\nÖsszesen: ${order.total} Ft\nÁtvétel: ${order.pickup}${order.delivery ? `\nKiszállítási cím: ${order.delivery.address}` : ''}\nFizetés: ${order.payment === 'barion' ? 'Barion: sikeres fizetés' : 'Készpénz átvételkor'}\n\nHamarosan felvesszük veled a kapcsolatot a teljesítés részleteiről.\n\nVirág Állomás Szeged` });
 }
 
 function orderNotification(order) {
@@ -376,15 +381,16 @@ async function refreshBarionOrder(store, order, paymentId = order.barionPaymentI
   if (payment.PaymentId !== order.barionPaymentId || Number(payment.Total) !== Number(order.total) || payment.Currency !== 'HUF') {
     throw new Error('A Barion fizetés adatai nem egyeznek a rendeléssel.');
   }
-  order.barionStatus = payment.PaymentStatus;
+  order.barionStatus = payment.Status;
   order.updatedAt = now();
-  if (payment.PaymentStatus === 'Succeeded') {
+  if (payment.Status === 'Succeeded') {
     order.status = 'paid';
     order.paidAt = order.paidAt || now();
     if (order.invoice?.requested) {
       try { await szamlazzInvoice(order); } catch (error) { order.invoice = { ...(order.invoice || {}), status: 'error', error: error.message }; }
     }
-  } else if (['Canceled', 'Expired', 'Failed'].includes(payment.PaymentStatus)) {
+    if (!order.confirmationSentAt && await customerConfirmation(order)) order.confirmationSentAt = now();
+  } else if (['Canceled', 'Expired', 'Failed'].includes(payment.Status)) {
     order.status = 'payment_error';
   }
   await saveStore(store);
@@ -482,6 +488,7 @@ async function api(req, res, url) {
     store.orders.unshift(order);
     await saveStore(store);
     await orderNotification(order);
+    if (payment === 'cash' && await customerConfirmation(order)) { order.confirmationSentAt = now(); await saveStore(store); }
 
     if (payment === 'barion') {
       const paymentRequest = {
